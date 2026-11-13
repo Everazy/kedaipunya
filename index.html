@@ -113,9 +113,9 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
   <nav id="nav">
     <button data-t="kasir" class="on">Kasir</button>
     <button data-t="menu" class="adm hide">Menu</button>
-    <button data-t="bahan" class="adm hide">Bahan</button>
-    <button data-t="riwayat" class="adm hide">Riwayat</button>
-    <button data-t="laporan" class="adm hide">Laporan</button>
+    <button data-t="bahan">Bahan</button>
+    <button data-t="riwayat">Riwayat</button>
+    <button data-t="laporan">Laporan</button>
     <button data-t="atur" class="adm hide">Pengaturan</button>
     <span class="tag" id="roleTag"></span>
     <button id="adminLogin" class="hide">Masuk Admin</button>
@@ -354,7 +354,7 @@ async function loadCashiers(){
 
 /* ---------- tab ---------- */
 function tab(t){
-  if(!isAdmin&&t!=="kasir")return;
+  if(!isAdmin&&(t==="menu"||t==="atur"))return;
   if(t!=="atur")discardDraft();
   ["kasir","menu","bahan","riwayat","laporan","atur"].forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
   document.querySelectorAll("#nav button[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
