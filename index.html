@@ -98,11 +98,12 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 <div id="login" class="hide">
   <div class="card">
     <img id="loginLogo" class="logo lg" alt="Logo">
-    <h2 style="font-size:20px;text-align:center">Masuk Kasir</h2>
+    <h2 style="font-size:20px;text-align:center">Masuk Admin</h2>
     <label for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username">
     <label for="lPass">Kata sandi</label><input id="lPass" type="password" autocomplete="current-password">
     <p class="err" id="lErr"></p>
     <button class="btn pri full" id="lBtn" style="margin-top:8px">Masuk</button>
+    <button class="btn full" id="lBack" style="margin-top:8px">Kembali ke kasir</button>
   </div>
 </div>
 
@@ -112,12 +113,13 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
   <nav id="nav">
     <button data-t="kasir" class="on">Kasir</button>
     <button data-t="menu" class="adm hide">Menu</button>
-    <button data-t="bahan">Bahan</button>
-    <button data-t="riwayat">Riwayat</button>
-    <button data-t="laporan">Laporan</button>
+    <button data-t="bahan" class="adm hide">Bahan</button>
+    <button data-t="riwayat" class="adm hide">Riwayat</button>
+    <button data-t="laporan" class="adm hide">Laporan</button>
     <button data-t="atur" class="adm hide">Pengaturan</button>
     <span class="tag" id="roleTag"></span>
-    <button id="logout" style="color:var(--bad)">Keluar</button>
+    <button id="adminLogin" class="hide">Masuk Admin</button>
+    <button id="logout" class="hide" style="color:var(--bad)">Keluar</button>
   </nav>
 </header>
 <main>
@@ -317,13 +319,18 @@ async function doLogin(){
   boot();
 }
 $("#lBtn").onclick=doLogin;
+$("#adminLogin").onclick=()=>{$("#app").classList.add("hide");$("#login").classList.remove("hide");$("#lErr").textContent=""};
+$("#lBack").onclick=()=>{$("#login").classList.add("hide");$("#app").classList.remove("hide")};
 $("#lPass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
 $("#logout").onclick=async()=>{await sb.auth.signOut();location.reload()};
 
 let isAdmin=false;
 async function boot(){
   $("#login").classList.add("hide");$("#app").classList.remove("hide");
-  try{const a=await sb.from("admins").select("user_id").maybeSingle();isAdmin=!!(a&&a.data)}catch(e){isAdmin=false}
+  let ses=null;try{ses=(await sb.auth.getSession()).data.session}catch(e){}
+  isAdmin=false;
+  if(ses){try{const a=await sb.from("admins").select("user_id").maybeSingle();isAdmin=!!(a&&a.data)}catch(e){}}
+  $("#logout").classList.toggle("hide",!ses);$("#adminLogin").classList.toggle("hide",!!ses);
   document.querySelectorAll("#nav .adm").forEach(b=>b.classList.toggle("hide",!isAdmin));
   $("#roleTag").textContent=isAdmin?"Admin":"Kasir";
   try{await Promise.all([loadMenu(),loadSet(),loadCashiers()])}catch(e){fail(e)}
@@ -347,7 +354,7 @@ async function loadCashiers(){
 
 /* ---------- tab ---------- */
 function tab(t){
-  if(!isAdmin&&(t==="menu"||t==="atur"))return;
+  if(!isAdmin&&t!=="kasir")return;
   if(t!=="atur")discardDraft();
   ["kasir","menu","bahan","riwayat","laporan","atur"].forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
   document.querySelectorAll("#nav button[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
@@ -423,24 +430,13 @@ async function finish(){
   try{
     const p=pending,r=ranges(),qris=p.method==="QRIS";
     const ds=new Date(r.today+tz).toISOString().slice(0,10).replace(/-/g,"");
-    const c=await sb.from("transactions").select("id",{count:"exact",head:true}).gte("created_at",new Date(r.today).toISOString());
-    const base=c.count||0;
     let proof=null;
     if(qris){
       const blob=await (await fetch(p.proof)).blob();proof=ds+"/"+Date.now()+".jpg";
       must(await sb.storage.from("payment-proofs").upload(proof,blob,{contentType:"image/jpeg"}));
     }
-    let t=null;
-    for(let i=1;i<=5&&!t;i++){
-      const res=await sb.from("transactions").insert({invoice_no:"INV-"+ds+"-"+String(base+i).padStart(3,"0"),method:p.method,total:p.total,paid:qris?p.total:p.paid,change_amount:qris?0:p.paid-p.total,proof_path:proof,cashier_name:p.cashier}).select().single();
-      if(res.error&&res.error.code!=="23505")throw res.error;
-      if(!res.error)t=res.data;
-    }
-    if(!t)throw new Error("Nomor invoice bentrok, coba lagi.");
-    const ir=await sb.from("transaction_items").insert(p.items.map(i=>({transaction_id:t.id,menu_item_id:i.id,name:i.name,price:i.price,qty:i.qty})));
-    if(ir.error){await sb.from("transactions").delete().eq("id",t.id);throw ir.error}
-    t.transaction_items=p.items;
-    cart={};renderCart();$("#payModal").classList.remove("open");showTrx(t,true);
+    const t=must(await sb.rpc("buat_transaksi",{p_items:p.items.map(i=>({id:i.id,qty:i.qty})),p_method:p.method,p_paid:qris?p.total:p.paid,p_cashier:p.cashier,p_proof:proof}));
+    cart={};renderCart();$("#payModal").classList.remove("open");showTrx(t,true,p.proof);
   }catch(e){btn.disabled=false;btn.textContent="Selesaikan transaksi";throw e}
 }
 
@@ -470,10 +466,10 @@ $("#camInput").addEventListener("change",e=>{
 });
 
 /* ---------- detail transaksi ---------- */
-async function showTrx(t,fresh){
+async function showTrx(t,fresh,localProof){
   const items=t.transaction_items||[];
-  let proofUrl="";
-  if(t.proof_path){try{proofUrl=(await signed("payment-proofs",[t.proof_path]))[t.proof_path]||""}catch(e){}}
+  let proofUrl=localProof||"";
+  if(!proofUrl&&t.proof_path){try{proofUrl=(await signed("payment-proofs",[t.proof_path]))[t.proof_path]||""}catch(e){}}
   let h='<h2>'+(fresh?'Transaksi berhasil':'Detail transaksi')+'</h2><div class="mute">'+esc(t.invoice_no)+' - '+fmt(t.created_at)+'</div>';
   h+=items.map(i=>'<div class="line"><span>'+i.qty+' x '+esc(i.name)+'</span><span>'+rp(i.qty*i.price)+'</span></div>').join("");
   h+='<div class="row sp" style="margin-top:10px"><b>Total</b><b>'+rp(t.total)+'</b></div><div class="row sp mute"><span>Metode</span><span>'+t.method+'</span></div>'+(t.cashier_name?'<div class="row sp mute"><span>Kasir</span><span>'+esc(t.cashier_name)+'</span></div>':'');
@@ -746,7 +742,7 @@ $("#expBtn").onclick=()=>run(async()=>{
 });
 
 /* ---------- mulai ---------- */
-sb.auth.getSession().then(r=>{if(r.data.session)boot();else $("#login").classList.remove("hide")});
+boot();
 })();
 </script>
 </body>
