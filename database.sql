@@ -194,11 +194,10 @@ on conflict (id) do nothing;
 
 -- =====================================================================
 -- MODE ADMIN + KASIR TANPA LOGIN
--- * Kasir: buka aplikasi langsung, tanpa akun. Hanya bisa memakai halaman
---   Kasir (lihat menu, pilih kasir, bayar). Tidak bisa melihat riwayat,
---   laporan, belanja bahan, atau mengubah apa pun.
--- * Admin: login email + kata sandi. Akun yang terdaftar di tabel "admins"
---   bisa semuanya: riwayat (termasuk hapus), menu, bahan, laporan, pengaturan.
+-- * Kasir: buka aplikasi langsung, tanpa akun. Bisa semua fitur (kasir,
+--   bahan, riwayat, laporan) KECUALI fitur admin di bawah.
+-- * Admin: login email + kata sandi. Akun yang terdaftar di tabel "admins".
+--   Fitur khusus admin: hapus riwayat transaksi, ubah menu, buka Pengaturan.
 -- Aturan dijaga di database (RLS), bukan hanya disembunyikan di tampilan.
 -- =====================================================================
 create table if not exists admins (
@@ -239,10 +238,17 @@ begin
     execute format('create policy "tulis_admin" on %I for all to authenticated using (is_admin()) with check (is_admin())', t);
   end loop;
 
-  -- yang boleh DIBACA kasir tanpa login: menu, nama kedai/QRIS/tema, daftar kasir
-  foreach t in array array['shop_settings','menu_items','cashiers']
+  -- kasir tanpa login boleh MEMBACA: menu, pengaturan tampilan, daftar kasir,
+  -- riwayat transaksi (untuk Riwayat dan Laporan)
+  foreach t in array array['shop_settings','menu_items','cashiers','transactions','transaction_items']
   loop
     execute format('create policy "baca_publik" on %I for select to anon, authenticated using (true)', t);
+  end loop;
+
+  -- kasir tanpa login boleh mencatat, mengubah, dan menghapus nota belanja bahan
+  foreach t in array array['purchases','purchase_notes']
+  loop
+    execute format('create policy "kasir_bahan" on %I for all to anon, authenticated using (true) with check (true)', t);
   end loop;
 end $$;
 
@@ -304,9 +310,9 @@ end $fn$;
 revoke all on function buat_transaksi(jsonb, text, numeric, text, text) from public;
 grant execute on function buat_transaksi(jsonb, text, numeric, text, text) to anon, authenticated;
 
--- Foto: kasir tanpa login hanya boleh melihat QRIS/logo (bucket "shop") dan
+-- Foto: kasir tanpa login boleh melihat QRIS/logo dan bukti transaksi, serta
 -- mengunggah bukti QRIS (JPEG kecil, nama file berpola tanggal).
--- Selain itu hanya admin.
+-- Mengganti QRIS/logo dan menghapus foto hanya admin.
 update storage.buckets
    set file_size_limit = 3145728, allowed_mime_types = array['image/jpeg']
  where id = 'payment-proofs';
@@ -317,7 +323,7 @@ drop policy if exists "storage_baca_shop" on storage.objects;
 drop policy if exists "storage_bukti_tambah" on storage.objects;
 drop policy if exists "storage_admin" on storage.objects;
 create policy "storage_baca_shop" on storage.objects for select to anon, authenticated
-  using (bucket_id = 'shop');
+  using (bucket_id in ('shop','payment-proofs'));
 create policy "storage_bukti_tambah" on storage.objects for insert to anon, authenticated
   with check (bucket_id = 'payment-proofs' and name ~ '^[0-9]{8}/[0-9]+\.jpg$');
 create policy "storage_admin" on storage.objects for all to authenticated
