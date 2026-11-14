@@ -89,6 +89,11 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .note th{text-align:left;color:var(--mute);font-weight:500;font-size:.85em;padding:4px 6px 4px 0}
 .note td{padding:6px 6px 6px 0;border-top:1px solid var(--line);vertical-align:top}
 .note .r{text-align:right;white-space:nowrap}
+.pgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.pth{position:relative;width:84px;height:84px;border-radius:var(--rs);overflow:hidden;border:1px solid var(--line);background:var(--soft)}
+.pth img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
+.pth .ld{display:block;padding:8px 6px;font-size:11px;color:var(--mute)}
+.pth button{position:absolute;top:3px;right:3px;width:24px;height:24px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-weight:800;line-height:1;padding:0}
 @media print{header,nav,.cart,#nav{display:none!important}}
 .err{color:var(--bad);margin:10px 0 0;min-height:1.2em;font-size:13px}
 </style>
@@ -164,6 +169,15 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
       <div class="row wrap" style="gap:12px;align-items:flex-end">
         <div style="flex:1;min-width:190px"><label for="nWhen">Tanggal dan waktu belanja</label><input id="nWhen" type="datetime-local"></div>
         <div style="flex:2;min-width:190px"><label for="nNote">Catatan / tempat belanja (opsional)</label><input id="nNote" placeholder="Contoh: Pasar Tarakan"></div>
+      </div>
+      <div style="margin-top:14px">
+        <label>Foto nota (opsional, maksimal 5)</label>
+        <div id="nPhotos" class="pgrid"></div>
+        <div class="row wrap" style="gap:8px;margin-top:8px;align-items:center">
+          <button class="btn" id="nCam" type="button">Foto nota</button>
+          <button class="btn" id="nGal" type="button">Pilih dari galeri</button>
+          <span class="mute" id="nPhotoInfo" style="font-size:13px"></span>
+        </div>
       </div>
       <datalist id="bahanList"></datalist>
       <div class="nhead" style="margin-top:14px"><span>Nama bahan</span><span>Satuan</span><span>Jumlah</span><span>Harga satuan (Rp)</span><span style="text-align:right">Total</span><span></span></div>
@@ -245,6 +259,8 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
   <div class="row" style="margin-top:12px"><button class="btn pri" id="snap">Ambil foto</button><button class="btn" id="camClose">Batal</button></div>
 </div></div>
 <input type="file" id="camInput" accept="image/*" capture="environment" class="hide">
+<input type="file" id="nCamInput" accept="image/*" capture="environment" class="hide">
+<input type="file" id="nGalInput" accept="image/*" multiple class="hide">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
@@ -571,8 +587,51 @@ function drawRows(){
    +'<button class="x" data-x="'+i+'" aria-label="Hapus baris">&times;</button></div>').join("");
   calcNote();
 }
+/* ---------- foto nota ---------- */
+const MAXF=5;
+let nPhotos=[],delPhotos=[];
+function freePhotos(){nPhotos.forEach(p=>{if(p.blob)URL.revokeObjectURL(p.src)})}
+function drawPhotos(){
+  $("#nPhotos").innerHTML=nPhotos.map((p,i)=>'<div class="pth">'+(p.src?'<img src="'+p.src+'" alt="Foto nota '+(i+1)+'" data-pv="'+i+'">':'<span class="ld">Memuat...</span>')+'<button type="button" data-px="'+i+'" aria-label="Hapus foto">&times;</button></div>').join("");
+  $("#nPhotoInfo").textContent=nPhotos.length?nPhotos.length+" dari "+MAXF+" foto":"Belum ada foto.";
+  $("#nCam").disabled=$("#nGal").disabled=nPhotos.length>=MAXF;
+}
+function shrinkFile(f){
+  return new Promise((ok,no)=>{
+    const u=URL.createObjectURL(f),im=new Image();
+    im.onload=()=>{
+      const r=Math.min(1,1800/Math.max(im.width,im.height)),c=document.createElement("canvas");
+      c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);
+      c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);
+      c.toBlob(b=>b?ok(b):no(new Error("Foto gagal diproses.")),"image/jpeg",.8);
+    };
+    im.onerror=()=>{URL.revokeObjectURL(u);no(new Error("Foto tidak bisa dibaca. Coba foto ulang atau pilih format JPG/PNG."))};
+    im.src=u;
+  });
+}
+async function addPhotos(files){
+  if(!files.length)return;
+  const room=MAXF-nPhotos.length;
+  if(files.length>room)alert("Maksimal "+MAXF+" foto per nota. Hanya "+room+" foto pertama yang ditambahkan.");
+  try{for(const f of files.slice(0,room)){const b=await shrinkFile(f);nPhotos.push({path:null,blob:b,src:URL.createObjectURL(b)})}}
+  finally{drawPhotos()}
+}
+function showPhotos(title,urls){
+  $("#viewSheet").innerHTML='<h2>'+esc(title)+'</h2>'+urls.map((u,i)=>u?'<img class="big" style="margin-bottom:10px" src="'+u+'" alt="Foto nota '+(i+1)+'">':'<div class="empty">Foto '+(i+1)+' tidak ditemukan.</div>').join("")+'<button class="btn full" style="margin-top:6px" id="closeView">Tutup</button>';
+  $("#viewModal").classList.add("open");
+}
+$("#nCam").onclick=()=>$("#nCamInput").click();
+$("#nGal").onclick=()=>$("#nGalInput").click();
+["#nCamInput","#nGalInput"].forEach(id=>$(id).addEventListener("change",e=>{
+  const f=Array.from(e.target.files);e.target.value="";run(()=>addPhotos(f));
+}));
+$("#nPhotos").addEventListener("click",e=>{
+  const x=e.target.closest("[data-px]");
+  if(x){const p=nPhotos.splice(+x.dataset.px,1)[0];if(p.blob)URL.revokeObjectURL(p.src);else if(p.path)delPhotos.push(p.path);drawPhotos();return}
+  if(e.target.closest("[data-pv]"))showPhotos("Foto nota",nPhotos.map(p=>p.src));
+});
 function resetNote(){
-  editNote=null;oldIds=[];rows=[newRow(),newRow(),newRow()];
+  editNote=null;oldIds=[];rows=[newRow(),newRow(),newRow()];freePhotos();nPhotos=[];delPhotos=[];drawPhotos();
   $("#nWhen").value=nowLocal();$("#nNote").value="";$("#bTitle").textContent="Nota belanja bahan";$("#cancelNote").classList.add("hide");drawRows();
 }
 $("#addRow").onclick=()=>{rows.push(newRow());drawRows();const l=$("#nRows").querySelectorAll('[data-f="name"]');l[l.length-1].focus()};
@@ -606,15 +665,15 @@ async function renderBuy(){
   let q2=sb.from("purchases").select("*").is("note_id",null).order("purchased_at",{ascending:false}).limit(500);
   if(s){q1=q1.gte("purchased_at",s);q2=q2.gte("purchased_at",s)}
   const [a,b]=(await Promise.all([q1,q2])).map(must);
-  notes=a.map(n=>({id:n.id,purchased_at:n.purchased_at,note:n.note,items:(n.purchases||[]).slice().sort((x,y)=>x.id-y.id),legacy:false}))
-    .concat(b.map(x=>({id:"L"+x.id,purchased_at:x.purchased_at,note:null,items:[x],legacy:true})));
+  notes=a.map(n=>({id:n.id,purchased_at:n.purchased_at,note:n.note,items:(n.purchases||[]).slice().sort((x,y)=>x.id-y.id),photos:n.photo_paths||[],legacy:false}))
+    .concat(b.map(x=>({id:"L"+x.id,purchased_at:x.purchased_at,note:null,items:[x],photos:[],legacy:true})));
   notes.sort((x,y)=>new Date(y.purchased_at)-new Date(x.purchased_at));
   lastBy={};const names=[];
   notes.forEach(n=>n.items.forEach(i=>{const k=i.name.trim().toLowerCase();if(!lastBy[k]){lastBy[k]={unit:i.unit,price:i.unit_price};names.push(i.name)}}));
   $("#bahanList").innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join("");
   const sum=n=>n.items.reduce((t,i)=>t+ +i.price,0);
   $("#buyTotal").textContent=rp(notes.reduce((t,n)=>t+sum(n),0));
-  $("#buyList").innerHTML=notes.length?notes.map(n=>'<div class="note"><div class="row sp wrap"><div><b>'+fmt(n.purchased_at)+'</b>'+(n.note?' <span class="tag">'+esc(n.note)+'</span>':'')+(n.legacy?' <span class="tag">catatan lama</span>':'')+'</div><div class="row"><button class="btn" data-ne="'+n.id+'">Ubah</button><button class="btn bad" data-nd="'+n.id+'">Hapus</button></div></div>'
+  $("#buyList").innerHTML=notes.length?notes.map(n=>'<div class="note"><div class="row sp wrap"><div><b>'+fmt(n.purchased_at)+'</b>'+(n.note?' <span class="tag">'+esc(n.note)+'</span>':'')+(n.legacy?' <span class="tag">catatan lama</span>':'')+'</div><div class="row">'+(n.photos.length?'<button class="btn" data-np="'+n.id+'">Foto ('+n.photos.length+')</button>':'')+'<button class="btn" data-ne="'+n.id+'">Ubah</button><button class="btn bad" data-nd="'+n.id+'">Hapus</button></div></div>'
     +'<div style="overflow-x:auto"><table><thead><tr><th>Bahan</th><th>Jumlah</th><th class="r">Harga satuan</th><th class="r">Total</th></tr></thead><tbody>'
     +n.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+(i.qty!=null?nf(i.qty)+(i.unit?" "+esc(i.unit):""):esc(i.quantity_note||"-"))+'</td><td class="r">'+(i.unit_price!=null?rp(i.unit_price):"-")+'</td><td class="r">'+rp(i.price)+'</td></tr>').join("")
     +'</tbody></table></div><div class="row sp"><span class="mute">'+n.items.length+' bahan</span><b>Total '+rp(sum(n))+'</b></div></div>').join(""):'<div class="empty">Belum ada nota belanja pada periode ini.</div>';
@@ -626,30 +685,68 @@ $("#saveNote").onclick=()=>run(async()=>{
   if(items.some(r=>!r.name.trim()||!(+r.qty>0)||r.price===""||!(+r.price>=0))){alert("Lengkapi nama bahan, jumlah, dan harga satuan di setiap baris. Hapus baris yang tidak dipakai.");return}
   const w=$("#nWhen").value;if(!w){alert("Isi tanggal belanja.");return}
   const when=new Date(w).toISOString(),b=$("#saveNote");b.disabled=true;
+  const up=[];let saved=false;
+  const dropUp=async()=>{
+    if(up.length)try{await sb.storage.from("payment-proofs").remove(up)}catch(e){}
+    nPhotos.forEach(p=>{if(p.blob)p.path=null});
+  };
   try{
+    /* 1. unggah foto baru (jika ada) */
+    const ds=new Date(ranges().today+tz).toISOString().slice(0,10).replace(/-/g,"");
+    try{
+      for(const p of nPhotos){
+        if(!p.blob)continue;
+        const path="nota/"+ds+"/"+Date.now()+up.length+".jpg";
+        must(await sb.storage.from("payment-proofs").upload(path,p.blob,{contentType:"image/jpeg"}));
+        p.path=path;up.push(path);
+      }
+    }catch(e){throw new Error("Gagal mengunggah foto nota: "+((e&&e.message)||e)+". Pastikan migrasi.sql terbaru sudah dijalankan di Supabase.")}
+    const paths=nPhotos.map(p=>p.path);
+    /* 2. simpan nota + isi bahan */
     const head={purchased_at:when,note:$("#nNote").value.trim()||null};
     let id=editNote;
     if(id)must(await sb.from("purchase_notes").update(head).eq("id",id));
-    else id=must(await sb.from("purchase_notes").insert(head).select().single()).id;
+    else id=must(await sb.from("purchase_notes").insert(paths.length?Object.assign({photo_paths:paths},head):head).select().single()).id;
     const ins=await sb.from("purchases").insert(items.map(r=>({note_id:id,name:r.name.trim(),unit:r.unit||null,qty:+r.qty,unit_price:Math.round(+r.price),quantity_note:nf(r.qty)+(r.unit?" "+r.unit:""),price:rowTotal(r),purchased_at:when})));
     if(ins.error){if(!editNote)await sb.from("purchase_notes").delete().eq("id",id);throw ins.error}
     if(oldIds.length)must(await sb.from("purchases").delete().in("id",oldIds));
-    resetNote();await renderBuy();
+    /* 3. ubah nota lama: perbarui daftar foto hanya kalau berubah */
+    if(editNote&&(up.length||delPhotos.length))must(await sb.from("purchase_notes").update({photo_paths:paths}).eq("id",id));
+    saved=true;
+  }catch(e){
+    if(!saved)await dropUp();
+    if(/photo_paths/.test((e&&e.message)||""))throw new Error("Kolom foto belum ada di database. Jalankan migrasi.sql terbaru di Supabase (SQL Editor) dulu.");
+    throw e;
   }finally{b.disabled=false}
+  if(delPhotos.length){try{await sb.storage.from("payment-proofs").remove(delPhotos)}catch(e){}}
+  resetNote();await renderBuy();
 });
 $("#cancelNote").onclick=resetNote;
 $("#buyList").addEventListener("click",e=>{
-  const ne=e.target.dataset.ne,nd=e.target.dataset.nd;
+  const ne=e.target.dataset.ne,nd=e.target.dataset.nd,np=e.target.dataset.np;
+  if(np){
+    const n=notes.find(x=>String(x.id)===np);if(!n)return;
+    $("#viewSheet").innerHTML='<h2>Foto nota</h2><div class="empty">Memuat...</div>';$("#viewModal").classList.add("open");
+    run(async()=>{
+      try{const m=await signed("payment-proofs",n.photos);showPhotos("Foto nota - "+fmt(n.purchased_at),n.photos.map(p=>m[p]||""))}
+      catch(err){$("#viewModal").classList.remove("open");throw err}
+    });
+    return;
+  }
   if(ne){
     const n=notes.find(x=>String(x.id)===ne);if(!n)return;
     oldIds=n.items.map(i=>i.id);
     if(n.legacy){const i=n.items[0];editNote=null;rows=[{name:i.name+(i.quantity_note?" ("+i.quantity_note+")":""),unit:"",qty:"1",price:String(i.price)}];$("#bTitle").textContent="Ubah catatan lama (disimpan sebagai nota baru)"}
     else{editNote=n.id;rows=n.items.map(i=>({name:i.name,unit:i.unit||"",qty:i.qty!=null?String(+i.qty):"1",price:String(i.unit_price!=null?+i.unit_price:+i.price)}));$("#bTitle").textContent="Ubah nota belanja"}
-    $("#nWhen").value=toLocalInput(n.purchased_at);$("#nNote").value=n.note||"";$("#cancelNote").classList.remove("hide");drawRows();window.scrollTo({top:0,behavior:"smooth"});
+    $("#nWhen").value=toLocalInput(n.purchased_at);$("#nNote").value=n.note||"";$("#cancelNote").classList.remove("hide");drawRows();
+    freePhotos();delPhotos=[];nPhotos=(n.legacy?[]:n.photos).map(p=>({path:p,src:""}));drawPhotos();
+    if(nPhotos.length){const eid=n.id;signed("payment-proofs",n.photos).then(m=>{if(editNote!==eid)return;nPhotos.forEach(p=>{if(p.path)p.src=m[p.path]||""});drawPhotos()}).catch(()=>{})}
+    window.scrollTo({top:0,behavior:"smooth"});
   }
   if(nd&&confirm("Hapus nota belanja ini beserta semua bahan di dalamnya?"))run(async()=>{
     const n=notes.find(x=>String(x.id)===nd);if(!n)return;
     if(n.legacy)must(await sb.from("purchases").delete().eq("id",n.items[0].id));else must(await sb.from("purchase_notes").delete().eq("id",n.id));
+    if(n.photos.length){try{await sb.storage.from("payment-proofs").remove(n.photos)}catch(e){}}
     if(editNote===n.id||(n.legacy&&oldIds.indexOf(n.items[0].id)>=0))resetNote();
     await renderBuy();
   });
