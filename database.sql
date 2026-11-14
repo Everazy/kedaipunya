@@ -83,6 +83,8 @@ create table if not exists purchases (
   unit          text,                            -- satuan: kg, liter, pcs, ...
   qty           numeric(12,3),                   -- jumlah dibeli
   unit_price    numeric(12,0),                   -- harga per satuan
+  size          numeric(12,3),                   -- isi per satuan, contoh 950 (opsional)
+  size_unit     text,                            -- satuan isi, contoh ml (opsional)
   quantity_note text,                            -- teks ringkas, contoh: "5 kg"
   price         numeric(12,0) not null check (price >= 0),   -- total baris
   purchased_at  timestamptz not null default now(),
