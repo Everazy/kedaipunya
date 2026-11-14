@@ -69,6 +69,7 @@ create table if not exists purchase_notes (
   id            bigint generated always as identity primary key,
   purchased_at  timestamptz not null default now(),
   note          text,                            -- catatan/toko (opsional)
+  photo_paths   text[] not null default '{}',     -- path foto nota di bucket "payment-proofs" (maks. 5)
   created_at    timestamptz not null default now()
 );
 create index if not exists purchase_notes_date_idx on purchase_notes (purchased_at desc);
@@ -329,6 +330,21 @@ create policy "storage_bukti_tambah" on storage.objects for insert to anon, auth
 create policy "storage_admin" on storage.objects for all to authenticated
   using (bucket_id in ('payment-proofs','shop') and is_admin())
   with check (bucket_id in ('payment-proofs','shop') and is_admin());
+
+-- =====================================================================
+-- FOTO NOTA BELANJA
+-- * Setiap nota belanja boleh punya sampai 5 foto (disimpan di bucket
+--   "payment-proofs", folder "nota/TANGGAL/").
+-- * Kasir tanpa login boleh mengunggah dan menghapus foto nota, sama seperti
+--   mereka boleh mencatat/mengubah/menghapus nota belanja bahan.
+-- =====================================================================
+
+drop policy if exists "storage_nota_tambah" on storage.objects;
+drop policy if exists "storage_nota_hapus"  on storage.objects;
+create policy "storage_nota_tambah" on storage.objects for insert to anon, authenticated
+  with check (bucket_id = 'payment-proofs' and name ~ '^nota/[0-9]{8}/[0-9]+\.jpg$');
+create policy "storage_nota_hapus" on storage.objects for delete to anon, authenticated
+  using (bucket_id = 'payment-proofs' and name ~ '^nota/[0-9]{8}/[0-9]+\.jpg$');
 
 -- =====================================================================
 -- SELESAI. Contoh pengecekan:
