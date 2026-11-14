@@ -72,17 +72,18 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .cashiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:6px 0}
 .cashiers .btn.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
 /* nota belanja */
-.nrow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr) 40px;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
+.nrow{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.6fr) minmax(0,.9fr) minmax(0,1.2fr) minmax(0,1.2fr) 40px;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
 .nrow label{margin:0 0 3px;font-size:12px}
 .nrow .sub-t{padding:10px 12px;border-radius:var(--rs);background:var(--soft);font-weight:800;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nrow .x{height:40px;border:1px solid var(--line);background:var(--surf);color:var(--bad);border-radius:var(--rs);font-weight:800}
-.nhead{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.1fr) minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.3fr) 40px;gap:8px;font-size:12px;color:var(--mute);padding-bottom:4px}
+.nhead{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1.6fr) minmax(0,.9fr) minmax(0,1.2fr) minmax(0,1.2fr) 40px;gap:8px;font-size:12px;color:var(--mute);padding-bottom:4px}
 @media(max-width:760px){
  .nhead{display:none}
- .nrow{grid-template-columns:1fr 1fr 1fr;grid-template-areas:"n n x" "u q p" "s s s";background:var(--surf);border:1px solid var(--line);border-radius:var(--rs);padding:10px;margin-bottom:10px}
- .nrow .c-n{grid-area:n}.nrow .c-u{grid-area:u}.nrow .c-q{grid-area:q}.nrow .c-p{grid-area:p}.nrow .c-s{grid-area:s}.nrow .x{grid-area:x}
+ .nrow{grid-template-columns:1fr 1fr 1fr;grid-template-areas:"n n x" "u z z" "q p p" "s s s";background:var(--surf);border:1px solid var(--line);border-radius:var(--rs);padding:10px;margin-bottom:10px}
+ .nrow .c-n{grid-area:n}.nrow .c-u{grid-area:u}.nrow .c-z{grid-area:z}.nrow .c-q{grid-area:q}.nrow .c-p{grid-area:p}.nrow .c-s{grid-area:s}.nrow .x{grid-area:x}
 }
 @media(min-width:761px){.nrow label{display:none}}
+.pair{display:flex;gap:6px}.pair>*{min-width:0;flex:1}
 .ntotal{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px;margin-top:12px;border-radius:var(--rs);background:var(--soft)}
 .note{border:1px solid var(--line);border-radius:calc(var(--r) - 2px);padding:12px 14px;margin-bottom:12px}
 .note table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.93em}
@@ -180,7 +181,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
         </div>
       </div>
       <datalist id="bahanList"></datalist>
-      <div class="nhead" style="margin-top:14px"><span>Nama bahan</span><span>Satuan</span><span>Jumlah</span><span>Harga satuan (Rp)</span><span style="text-align:right">Total</span><span></span></div>
+      <div class="nhead" style="margin-top:14px"><span>Nama bahan</span><span>Satuan</span><span>Isi per satuan (opsional)</span><span>Jumlah</span><span>Harga satuan (Rp)</span><span style="text-align:right">Total</span><span></span></div>
       <div id="nRows"></div>
       <button class="btn" id="addRow" style="margin-top:10px">+ Tambah bahan</button>
       <div class="ntotal"><div><span class="mute">Total belanja</span><div class="mute" id="nCount"></div></div><span class="total" id="nTotal">Rp0</span></div>
@@ -566,10 +567,13 @@ $("#menuAdmin").addEventListener("click",e=>{
 const UNITS0=["kg","gram","liter","ml","pcs","pack","botol","dus","karung","bungkus","ikat","butir"];
 let units=UNITS0.slice();try{JSON.parse(localStorage.getItem("kasir_satuan")||"[]").forEach(u=>{if(units.indexOf(u)<0)units.push(u)})}catch(e){}
 let rows=[],editNote=null,oldIds=[],lastBy={};
-const newRow=()=>({name:"",unit:"kg",qty:"",price:""});
+const newRow=()=>({name:"",unit:"kg",qty:"",price:"",size:"",sizeUnit:"ml"});
 const rowTotal=r=>Math.round((+r.qty||0)*Math.round(+r.price||0));
 const noteSum=()=>rows.reduce((a,r)=>a+rowTotal(r),0);
 const nf=n=>(+n).toLocaleString("id-ID",{maximumFractionDigits:3});
+function sizeOpts(sel){
+  return '<option value=""'+(!sel?' selected':'')+'>-</option>'+units.map(u=>'<option'+(u===sel?' selected':'')+'>'+esc(u)+'</option>').join("")+(sel&&units.indexOf(sel)<0?'<option selected>'+esc(sel)+'</option>':'');
+}
 function unitOpts(sel){
   return '<option value=""'+(!sel?' selected':'')+'>-</option>'+units.map(u=>'<option'+(u===sel?' selected':'')+'>'+esc(u)+'</option>').join("")+(sel&&units.indexOf(sel)<0?'<option selected>'+esc(sel)+'</option>':'')+'<option value="__new">+ Satuan baru...</option>';
 }
@@ -581,6 +585,7 @@ function drawRows(){
   $("#nRows").innerHTML=rows.map((r,i)=>'<div class="nrow" data-i="'+i+'">'
    +'<div class="c-n"><label>Nama bahan</label><input data-f="name" list="bahanList" value="'+esc(r.name)+'" placeholder="Contoh: Biji kopi" autocomplete="off"></div>'
    +'<div class="c-u"><label>Satuan</label><select data-f="unit">'+unitOpts(r.unit)+'</select></div>'
+   +'<div class="c-z"><label>Isi per satuan (opsional)</label><div class="pair"><input data-f="size" type="number" min="0" step="any" inputmode="decimal" value="'+esc(r.size)+'" placeholder="950"><select data-f="sizeUnit" aria-label="Satuan isi">'+sizeOpts(r.sizeUnit)+'</select></div></div>'
    +'<div class="c-q"><label>Jumlah</label><input data-f="qty" type="number" min="0" step="any" inputmode="decimal" value="'+esc(r.qty)+'" placeholder="0"></div>'
    +'<div class="c-p"><label>Harga satuan (Rp)</label><input data-f="price" type="number" min="0" step="any" inputmode="numeric" value="'+esc(r.price)+'" placeholder="0"></div>'
    +'<div class="c-s"><label>Total</label><div class="sub-t">'+rp(rowTotal(r))+'</div></div>'
@@ -636,7 +641,7 @@ function resetNote(){
 }
 $("#addRow").onclick=()=>{rows.push(newRow());drawRows();const l=$("#nRows").querySelectorAll('[data-f="name"]');l[l.length-1].focus()};
 $("#nRows").addEventListener("input",e=>{
-  const f=e.target.dataset.f;if(!f||f==="unit")return;
+  const f=e.target.dataset.f;if(!f||f==="unit"||f==="sizeUnit")return;
   const row=e.target.closest(".nrow"),i=+row.dataset.i;rows[i][f]=e.target.value;
   row.querySelector(".sub-t").textContent=rp(rowTotal(rows[i]));calcNote();
 });
@@ -649,9 +654,11 @@ $("#nRows").addEventListener("change",e=>{
       if(u){if(units.indexOf(u)<0){units.push(u);try{localStorage.setItem("kasir_satuan",JSON.stringify(units.filter(x=>UNITS0.indexOf(x)<0)))}catch(x){}}r.unit=u}
       drawRows();
     }else r.unit=e.target.value;
+  }else if(f==="sizeUnit"){
+    r.sizeUnit=e.target.value;
   }else if(f==="name"){
     const h=lastBy[r.name.trim().toLowerCase()];
-    if(h){if(!r.price&&h.price!=null)r.price=h.price;if(h.unit!=null&&r.unit==="kg"&&!r.qty)r.unit=h.unit;drawRows()}
+    if(h){if(!r.price&&h.price!=null)r.price=h.price;if(h.unit!=null&&r.unit==="kg"&&!r.qty)r.unit=h.unit;if(!r.size&&h.size!=null){r.size=String(+h.size);r.sizeUnit=h.sizeUnit||""}drawRows()}
   }
 });
 $("#nRows").addEventListener("click",e=>{
@@ -669,13 +676,13 @@ async function renderBuy(){
     .concat(b.map(x=>({id:"L"+x.id,purchased_at:x.purchased_at,note:null,items:[x],photos:[],legacy:true})));
   notes.sort((x,y)=>new Date(y.purchased_at)-new Date(x.purchased_at));
   lastBy={};const names=[];
-  notes.forEach(n=>n.items.forEach(i=>{const k=i.name.trim().toLowerCase();if(!lastBy[k]){lastBy[k]={unit:i.unit,price:i.unit_price};names.push(i.name)}}));
+  notes.forEach(n=>n.items.forEach(i=>{const k=i.name.trim().toLowerCase();if(!lastBy[k]){lastBy[k]={unit:i.unit,price:i.unit_price,size:i.size,sizeUnit:i.size_unit};names.push(i.name)}}));
   $("#bahanList").innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join("");
   const sum=n=>n.items.reduce((t,i)=>t+ +i.price,0);
   $("#buyTotal").textContent=rp(notes.reduce((t,n)=>t+sum(n),0));
   $("#buyList").innerHTML=notes.length?notes.map(n=>'<div class="note"><div class="row sp wrap"><div><b>'+fmt(n.purchased_at)+'</b>'+(n.note?' <span class="tag">'+esc(n.note)+'</span>':'')+(n.legacy?' <span class="tag">catatan lama</span>':'')+'</div><div class="row">'+(n.photos.length?'<button class="btn" data-np="'+n.id+'">Foto ('+n.photos.length+')</button>':'')+'<button class="btn" data-ne="'+n.id+'">Ubah</button><button class="btn bad" data-nd="'+n.id+'">Hapus</button></div></div>'
     +'<div style="overflow-x:auto"><table><thead><tr><th>Bahan</th><th>Jumlah</th><th class="r">Harga satuan</th><th class="r">Total</th></tr></thead><tbody>'
-    +n.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+(i.qty!=null?nf(i.qty)+(i.unit?" "+esc(i.unit):""):esc(i.quantity_note||"-"))+'</td><td class="r">'+(i.unit_price!=null?rp(i.unit_price):"-")+'</td><td class="r">'+rp(i.price)+'</td></tr>').join("")
+    +n.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+(i.qty!=null?nf(i.qty)+(i.unit?" "+esc(i.unit):""):esc(i.quantity_note||"-"))+(i.size!=null&&+i.size>0?' <span class="mute">(isi '+nf(i.size)+(i.size_unit?" "+esc(i.size_unit):"")+')</span>':"")+'</td><td class="r">'+(i.unit_price!=null?rp(i.unit_price):"-")+'</td><td class="r">'+rp(i.price)+'</td></tr>').join("")
     +'</tbody></table></div><div class="row sp"><span class="mute">'+n.items.length+' bahan</span><b>Total '+rp(sum(n))+'</b></div></div>').join(""):'<div class="empty">Belum ada nota belanja pada periode ini.</div>';
 }
 $("#bFilter").onchange=()=>run(renderBuy);
@@ -683,6 +690,7 @@ $("#saveNote").onclick=()=>run(async()=>{
   const items=rows.filter(r=>r.name.trim()||r.qty||r.price);
   if(!items.length){alert("Isi minimal satu bahan.");return}
   if(items.some(r=>!r.name.trim()||!(+r.qty>0)||r.price===""||!(+r.price>=0))){alert("Lengkapi nama bahan, jumlah, dan harga satuan di setiap baris. Hapus baris yang tidak dipakai.");return}
+  if(items.some(r=>r.size!==""&&!(+r.size>0))){alert("Isi per satuan harus lebih dari 0, atau kosongkan kolomnya.");return}
   const w=$("#nWhen").value;if(!w){alert("Isi tanggal belanja.");return}
   const when=new Date(w).toISOString(),b=$("#saveNote");b.disabled=true;
   const up=[];let saved=false;
@@ -707,7 +715,7 @@ $("#saveNote").onclick=()=>run(async()=>{
     let id=editNote;
     if(id)must(await sb.from("purchase_notes").update(head).eq("id",id));
     else id=must(await sb.from("purchase_notes").insert(paths.length?Object.assign({photo_paths:paths},head):head).select().single()).id;
-    const ins=await sb.from("purchases").insert(items.map(r=>({note_id:id,name:r.name.trim(),unit:r.unit||null,qty:+r.qty,unit_price:Math.round(+r.price),quantity_note:nf(r.qty)+(r.unit?" "+r.unit:""),price:rowTotal(r),purchased_at:when})));
+    const ins=await sb.from("purchases").insert(items.map(r=>Object.assign({note_id:id,name:r.name.trim(),unit:r.unit||null,qty:+r.qty,unit_price:Math.round(+r.price),quantity_note:nf(r.qty)+(r.unit?" "+r.unit:"")+(+r.size>0?" (isi "+nf(r.size)+(r.sizeUnit?" "+r.sizeUnit:"")+")":""),price:rowTotal(r),purchased_at:when},+r.size>0?{size:+r.size,size_unit:r.sizeUnit||null}:{})));
     if(ins.error){if(!editNote)await sb.from("purchase_notes").delete().eq("id",id);throw ins.error}
     if(oldIds.length)must(await sb.from("purchases").delete().in("id",oldIds));
     /* 3. ubah nota lama: perbarui daftar foto hanya kalau berubah */
@@ -715,6 +723,7 @@ $("#saveNote").onclick=()=>run(async()=>{
     saved=true;
   }catch(e){
     if(!saved)await dropUp();
+    if(/size_unit|'size'|purchases.*size/.test((e&&e.message)||""))throw new Error("Kolom isi per satuan belum ada di database. Jalankan migrasi.sql terbaru di Supabase (SQL Editor) dulu.");
     if(/photo_paths/.test((e&&e.message)||""))throw new Error("Kolom foto belum ada di database. Jalankan migrasi.sql terbaru di Supabase (SQL Editor) dulu.");
     throw e;
   }finally{b.disabled=false}
@@ -736,8 +745,8 @@ $("#buyList").addEventListener("click",e=>{
   if(ne){
     const n=notes.find(x=>String(x.id)===ne);if(!n)return;
     oldIds=n.items.map(i=>i.id);
-    if(n.legacy){const i=n.items[0];editNote=null;rows=[{name:i.name+(i.quantity_note?" ("+i.quantity_note+")":""),unit:"",qty:"1",price:String(i.price)}];$("#bTitle").textContent="Ubah catatan lama (disimpan sebagai nota baru)"}
-    else{editNote=n.id;rows=n.items.map(i=>({name:i.name,unit:i.unit||"",qty:i.qty!=null?String(+i.qty):"1",price:String(i.unit_price!=null?+i.unit_price:+i.price)}));$("#bTitle").textContent="Ubah nota belanja"}
+    if(n.legacy){const i=n.items[0];editNote=null;rows=[{name:i.name+(i.quantity_note?" ("+i.quantity_note+")":""),unit:"",qty:"1",price:String(i.price),size:"",sizeUnit:"ml"}];$("#bTitle").textContent="Ubah catatan lama (disimpan sebagai nota baru)"}
+    else{editNote=n.id;rows=n.items.map(i=>({name:i.name,unit:i.unit||"",qty:i.qty!=null?String(+i.qty):"1",price:String(i.unit_price!=null?+i.unit_price:+i.price),size:i.size!=null&&+i.size>0?String(+i.size):"",sizeUnit:i.size_unit||""}));$("#bTitle").textContent="Ubah nota belanja"}
     $("#nWhen").value=toLocalInput(n.purchased_at);$("#nNote").value=n.note||"";$("#cancelNote").classList.remove("hide");drawRows();
     freePhotos();delPhotos=[];nPhotos=(n.legacy?[]:n.photos).map(p=>({path:p,src:""}));drawPhotos();
     if(nPhotos.length){const eid=n.id;signed("payment-proofs",n.photos).then(m=>{if(editNote!==eid)return;nPhotos.forEach(p=>{if(p.path)p.src=m[p.path]||""});drawPhotos()}).catch(()=>{})}
