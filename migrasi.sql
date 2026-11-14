@@ -201,5 +201,11 @@ create policy "storage_nota_tambah" on storage.objects for insert to anon, authe
 create policy "storage_nota_hapus" on storage.objects for delete to anon, authenticated
   using (bucket_id = 'payment-proofs' and name ~ '^nota/[0-9]{8}/[0-9]+\.jpg$');
 
+-- =====================================================================
+-- ISI PER SATUAN (contoh: 2 botol, isi 950 ml). Opsional, diketik manual.
+-- =====================================================================
+alter table purchases add column if not exists size      numeric(12,3);
+alter table purchases add column if not exists size_unit text;
+
 -- SELESAI. Pembelian lama (sebelum migrasi) tetap tampil sebagai "catatan lama".
 -- Mode admin aktif: akun yang sudah ada = admin; kasir memakai aplikasi tanpa login.
