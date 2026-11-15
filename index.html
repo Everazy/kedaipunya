@@ -104,6 +104,9 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .led th{text-align:left;color:var(--mute);font-weight:500;font-size:.85em;padding:6px}
 .led td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:top}
 .led .r{text-align:right;white-space:nowrap}.led .in{color:var(--acc);font-weight:700}.led .out{color:var(--bad);font-weight:700}
+@keyframes fl{0%,65%{background:color-mix(in srgb,var(--acc) 32%,transparent);box-shadow:0 0 0 3px var(--acc)}100%{background:transparent;box-shadow:0 0 0 0 transparent}}
+.flash{animation:fl 2.6s ease-out;border-radius:var(--rs)}
+.lnk{border:0;background:none;color:var(--acc);font-weight:600;padding:0;text-decoration:underline;text-underline-offset:2px}
 .err{color:var(--bad);margin:10px 0 0;min-height:1.2em;font-size:13px}
 </style>
 </head>
@@ -418,7 +421,7 @@ function tab(t){
   if(t!=="atur")discardDraft();
   ["kasir","antrian","menu","bahan","riwayat","laporan","pembukuan","atur"].forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
   document.querySelectorAll("#nav button[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  if(t==="riwayat")run(renderHist);if(t==="laporan")run(renderReport);if(t==="menu")renderAdmin();if(t==="bahan")run(renderBuy);if(t==="atur")renderSet();if(t==="antrian")run(()=>renderQueue());if(t==="pembukuan"){if(!$("#pbWhen").value)$("#pbWhen").value=nowLocal();run(renderPb)}
+  if(t==="riwayat"&&!noRender)run(renderHist);if(t==="laporan")run(renderReport);if(t==="menu")renderAdmin();if(t==="bahan"&&!noRender)run(renderBuy);if(t==="atur")renderSet();if(t==="antrian")run(()=>renderQueue());if(t==="pembukuan"){if(!$("#pbWhen").value)$("#pbWhen").value=nowLocal();if(!noRender)run(renderPb)}
 }
 $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-t]");if(b)tab(b.dataset.t)});
 
@@ -621,7 +624,7 @@ async function renderReport(){
   const [s,d,top]=await Promise.all([sb.from("report_summary").select("*"),sb.from("report_daily").select("*").limit(14),sb.from("report_top_items").select("*").limit(6)]).then(a=>a.map(must));
   const order=["Hari ini","Minggu ini","Bulan ini","Tahun ini","Semua waktu"];
   s.sort((a,b)=>order.indexOf(a.period)-order.indexOf(b.period));
-  $("#stats").innerHTML=s.map(x=>{const l=+x.laba_kotor;return '<div class="card stat"><span class="mute">'+x.period+'</span><b class="big">'+rp(x.pendapatan)+'</b><span class="mute">'+x.jumlah_transaksi+' transaksi</span><div class="line" style="margin-top:8px;padding:6px 0"><span class="mute">Beli bahan</span><span>'+rp(x.pengeluaran_bahan)+'</span></div><div class="row sp" style="padding-top:6px"><span class="mute">Laba kotor</span><b style="color:'+(l<0?'var(--bad)':'var(--acc)')+'">'+rp(l)+'</b></div></div>'}).join("");
+  $("#stats").innerHTML=s.map(x=>{const l=+x.laba_kotor;return '<div class="card stat"><span class="mute">'+x.period+'</span><b class="big">'+rp(x.pendapatan)+'</b><button class="lnk" data-go="riwayat" data-per="'+x.period+'">'+x.jumlah_transaksi+' transaksi &rsaquo;</button><div class="line" style="margin-top:8px;padding:6px 0"><button class="lnk" data-go="bahan" data-per="'+x.period+'">Beli bahan &rsaquo;</button><span>'+rp(x.pengeluaran_bahan)+'</span></div><div class="row sp" style="padding-top:6px">'+(isAdmin?'<button class="lnk" data-go="pembukuan" data-per="'+x.period+'">Laba kotor &rsaquo;</button>':'<span class="mute">Laba kotor</span>')+'<b style="color:'+(l<0?'var(--bad)':'var(--acc)')+'">'+rp(l)+'</b></div></div>'}).join("");
   const map={};d.forEach(x=>{map[x.tanggal]=+x.pendapatan});
   const r=ranges(),days=[];let max=1;
   for(let i=6;i>=0;i--){
@@ -773,7 +776,7 @@ async function renderBuy(){
   $("#bahanList").innerHTML=names.map(n=>'<option value="'+esc(n)+'">').join("");
   const sum=n=>n.items.reduce((t,i)=>t+ +i.price,0);
   $("#buyTotal").textContent=rp(notes.reduce((t,n)=>t+sum(n),0));
-  $("#buyList").innerHTML=notes.length?notes.map(n=>'<div class="note"><div class="row sp wrap"><div><b>'+fmt(n.purchased_at)+'</b>'+(n.note?' <span class="tag">'+esc(n.note)+'</span>':'')+(n.legacy?' <span class="tag">catatan lama</span>':'')+'</div><div class="row">'+(n.photos.length?'<button class="btn" data-np="'+n.id+'">Foto ('+n.photos.length+')</button>':'')+'<button class="btn" data-ne="'+n.id+'">Ubah</button><button class="btn bad" data-nd="'+n.id+'">Hapus</button></div></div>'
+  $("#buyList").innerHTML=notes.length?notes.map(n=>'<div class="note" data-nid="'+n.id+'"><div class="row sp wrap"><div><b>'+fmt(n.purchased_at)+'</b>'+(n.note?' <span class="tag">'+esc(n.note)+'</span>':'')+(n.legacy?' <span class="tag">catatan lama</span>':'')+'</div><div class="row">'+(n.photos.length?'<button class="btn" data-np="'+n.id+'">Foto ('+n.photos.length+')</button>':'')+'<button class="btn" data-ne="'+n.id+'">Ubah</button><button class="btn bad" data-nd="'+n.id+'">Hapus</button></div></div>'
     +'<div style="overflow-x:auto"><table><thead><tr><th>Bahan</th><th>Jumlah</th><th class="r">Harga satuan</th><th class="r">Total</th></tr></thead><tbody>'
     +n.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+(i.qty!=null?nf(i.qty)+(i.unit?" "+esc(i.unit):""):esc(i.quantity_note||"-"))+(i.size!=null&&+i.size>0?' <span class="mute">(isi '+nf(i.size)+(i.size_unit?" "+esc(i.size_unit):"")+')</span>':"")+'</td><td class="r">'+(i.unit_price!=null?rp(i.unit_price):"-")+'</td><td class="r">'+rp(i.price)+'</td></tr>').join("")
     +'</tbody></table></div><div class="row sp"><span class="mute">'+n.items.length+' bahan</span><b>Total '+rp(sum(n))+'</b></div></div>').join(""):'<div class="empty">Belum ada nota belanja pada periode ini.</div>';
@@ -855,7 +858,7 @@ $("#buyList").addEventListener("click",e=>{
 });
 
 /* ---------- antrian ---------- */
-let qMode="unmade",qList=[];
+let qMode="unmade",qList=[],lastQ=null,noRender=false;
 const qNo=t=>"#"+String(t.invoice_no).split("-").pop();
 const waitTxt=t=>{const m=Math.max(0,Math.round((Date.now()-new Date(t.created_at))/6e4));return m<60?m+" mnt":Math.floor(m/60)+" j "+(m%60)+" mnt"};
 async function renderQueue(quiet){
@@ -884,7 +887,7 @@ $("#qList").addEventListener("click",e=>{
 async function pollQueue(){
   try{
     const r=await sb.from("transactions").select("id",{count:"exact",head:true}).eq("is_made",false),n=r.count||0,b=$("#qCount");
-    b.textContent=n;b.classList.toggle("hide",!n);
+    b.textContent=n;b.classList.toggle("hide",!n);if(lastQ!==null&&n>lastQ)flash($('#nav [data-t="antrian"]'),true);lastQ=n;
   }catch(e){}
   if(!$("#antrian").classList.contains("hide"))try{await renderQueue(true)}catch(e){}
 }
@@ -902,30 +905,50 @@ async function renderPb(){
   $("#pbTable").innerHTML='<div class="empty">Memuat...</div>';
   const s=since($("#pbFilter").value);
   const [tr,nt,lg,ce]=await Promise.all([
-    fetchAll(()=>{let q=sb.from("transactions").select("total,method,paid_at,created_at").eq("is_paid",true).order("created_at");if(s)q=q.gte("paid_at",s);return q}),
+    fetchAll(()=>{let q=sb.from("transactions").select("id,total,method,paid_at,created_at").eq("is_paid",true).order("created_at");if(s)q=q.gte("paid_at",s);return q}),
     fetchAll(()=>{let q=sb.from("purchase_notes").select("id,purchased_at,note,purchases(price)").order("purchased_at");if(s)q=q.gte("purchased_at",s);return q}),
     fetchAll(()=>{let q=sb.from("purchases").select("id,name,price,purchased_at").is("note_id",null).order("purchased_at");if(s)q=q.gte("purchased_at",s);return q}),
     fetchAll(()=>{let q=sb.from("cash_entries").select("*").order("entry_date");if(s)q=q.gte("entry_date",s);return q}).catch(e=>{if(/cash_entries/.test((e&&e.message)||""))throw new Error("Tabel pembukuan belum ada. Jalankan migrasi.sql terbaru di Supabase (SQL Editor) dulu.");throw e})
   ]);
   const E=[],g={};
   tr.forEach(t=>{
-    const ts=t.paid_at||t.created_at,k=new Date(new Date(ts).getTime()+tz).toISOString().slice(0,10)+"|"+t.method,x=g[k]||(g[k]={ts:ts,m:t.method,n:0,v:0});
-    x.n++;x.v+=+t.total;if(new Date(ts)>new Date(x.ts))x.ts=ts;
+    const ts=t.paid_at||t.created_at,k=new Date(new Date(ts).getTime()+tz).toISOString().slice(0,10)+"|"+t.method,x=g[k]||(g[k]={ts:ts,t0:ts,m:t.method,n:0,v:0,ids:[]});
+    x.n++;x.v+=+t.total;x.ids.push(t.id);if(new Date(ts)>new Date(x.ts))x.ts=ts;if(new Date(ts)<new Date(x.t0))x.t0=ts;
   });
-  Object.keys(g).forEach(k=>{const x=g[k];E.push({ts:x.ts,desc:"Penjualan "+x.m+" ("+x.n+" transaksi)",cat:"Penjualan "+x.m,inn:x.v,out:0})});
-  nt.forEach(n=>{const it=n.purchases||[];E.push({ts:n.purchased_at,desc:"Belanja bahan"+(n.note?" - "+n.note:"")+" ("+it.length+" bahan)",cat:"Belanja bahan",inn:0,out:it.reduce((a,i)=>a+ +i.price,0)})});
-  lg.forEach(x=>E.push({ts:x.purchased_at,desc:"Belanja: "+x.name,cat:"Belanja bahan",inn:0,out:+x.price}));
+  Object.keys(g).forEach(k=>{const x=g[k];E.push({ts:x.ts,desc:"Penjualan "+x.m+" ("+x.n+" transaksi)",cat:"Penjualan "+x.m,inn:x.v,out:0,ids:x.ids,go:"trx",jam:tOnly(x.t0)!==tOnly(x.ts)?tOnly(x.t0)+" - "+tOnly(x.ts):tOnly(x.ts)})});
+  nt.forEach(n=>{const it=n.purchases||[];E.push({ts:n.purchased_at,desc:"Belanja bahan"+(n.note?" - "+n.note:"")+" ("+it.length+" bahan)",cat:"Belanja bahan",inn:0,out:it.reduce((a,i)=>a+ +i.price,0),go:"bahan",nid:n.id})});
+  lg.forEach(x=>E.push({ts:x.purchased_at,desc:"Belanja: "+x.name,cat:"Belanja bahan",inn:0,out:+x.price,go:"bahan",nid:"L"+x.id}));
   ce.forEach(c=>E.push({ts:c.entry_date,desc:c.description||c.category,cat:c.category,inn:c.kind==="masuk"?+c.amount:0,out:c.kind==="keluar"?+c.amount:0,id:c.id}));
-  E.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  E.forEach(e=>{if(!e.jam)e.jam=tOnly(e.ts)});E.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
   let bal=0,tin=0,tout=0;const cm={};
   E.forEach(e=>{bal+=e.inn-e.out;e.bal=bal;tin+=e.inn;tout+=e.out;const c=cm[e.cat]||(cm[e.cat]={i:0,o:0});c.i+=e.inn;c.o+=e.out});
   pbRows=E;
   $("#pbStats").innerHTML='<div class="card stat"><span class="mute">Total masuk</span><b class="big" style="color:var(--acc)">'+rp(tin)+'</b></div><div class="card stat"><span class="mute">Total keluar</span><b class="big" style="color:var(--bad)">'+rp(tout)+'</b></div><div class="card stat"><span class="mute">Saldo / laba bersih</span><b class="big" style="color:'+(bal<0?'var(--bad)':'var(--acc)')+'">'+rp(bal)+'</b></div>';
-  $("#pbTable").innerHTML=E.length?'<table><thead><tr><th>Tanggal</th><th>Keterangan</th><th class="r">Masuk</th><th class="r">Keluar</th><th class="r">Saldo</th><th></th></tr></thead><tbody>'+E.map(e=>'<tr><td>'+dOnly(e.ts)+'</td><td>'+esc(e.desc)+'<div><span class="tag">'+esc(e.cat)+'</span></div></td><td class="r in">'+(e.inn?rp(e.inn):"")+'</td><td class="r out">'+(e.out?rp(e.out):"")+'</td><td class="r">'+rp(e.bal)+'</td><td>'+(e.id?'<button class="btn bad" style="padding:4px 10px" data-pd="'+e.id+'" aria-label="Hapus catatan">&times;</button>':'')+'</td></tr>').join("")+'</tbody></table>':'<div class="empty">Belum ada catatan pada periode ini.</div>';
+  $("#pbTable").innerHTML=E.length?'<table><thead><tr><th>Tanggal / jam</th><th>Keterangan</th><th class="r">Masuk</th><th class="r">Keluar</th><th class="r">Saldo</th><th></th></tr></thead><tbody>'+E.map((e,i)=>'<tr><td>'+dOnly(e.ts)+'<div class="mute" style="font-size:.9em">'+e.jam+'</div></td><td>'+esc(e.desc)+'<div><span class="tag">'+esc(e.cat)+'</span></div></td><td class="r in">'+(e.inn?rp(e.inn):"")+'</td><td class="r out">'+(e.out?rp(e.out):"")+'</td><td class="r">'+rp(e.bal)+'</td><td>'+(e.go?'<button class="btn" style="padding:4px 10px" data-pi="'+i+'">Lihat &rsaquo;</button>':'')+(e.id?'<button class="btn bad" style="padding:4px 10px" data-pd="'+e.id+'" aria-label="Hapus catatan">&times;</button>':'')+'</td></tr>').join("")+'</tbody></table>':'<div class="empty">Belum ada catatan pada periode ini.</div>';
   const ck=Object.keys(cm);
   $("#pbCats").innerHTML=ck.length?'<table><thead><tr><th>Kategori</th><th class="r">Masuk</th><th class="r">Keluar</th></tr></thead><tbody>'+ck.map(k=>'<tr><td>'+esc(k)+'</td><td class="r in">'+(cm[k].i?rp(cm[k].i):"")+'</td><td class="r out">'+(cm[k].o?rp(cm[k].o):"")+'</td></tr>').join("")+'</tbody></table>':'<div class="empty">-</div>';
 }
 $("#pbFilter").onchange=()=>run(renderPb);
+const tOnly=ts=>new Date(ts).toLocaleTimeString("id-ID",{timeZone:"Asia/Makassar",hour:"2-digit",minute:"2-digit"}).replace(":",".");
+function flash(el,ns){if(!el)return;if(!ns)el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),2800)}
+async function goTab(t,render,sel){noRender=true;try{tab(t)}finally{noRender=false}if(render)try{await render()}catch(e){fail(e);return}if(sel)flash($(sel))}
+$("#pbTable").addEventListener("click",e=>{
+  const b=e.target.closest("[data-pi]");if(!b)return;const r=pbRows[+b.dataset.pi];if(!r)return;
+  if(r.go==="bahan")run(async()=>{$("#bFilter").value="all";await goTab("bahan",renderBuy);flash($('#buyList [data-nid="'+r.nid+'"]'))});
+  else if(r.go==="trx")run(async()=>{
+    $("#hFilter").value="all";$("#hStatus").value="all";await goTab("riwayat",renderHist);
+    const ids=new Set(r.ids.map(String)),els=Array.from(document.querySelectorAll("#hist [data-t]")).filter(x=>ids.has(x.dataset.t));
+    if(!els.length){alert("Transaksi tidak ditemukan di Riwayat (Riwayat hanya menampilkan 300 transaksi terbaru).");return}
+    els.forEach((x,i)=>flash(x,i>0));
+  });
+});
+$("#stats").addEventListener("click",e=>{
+  const b=e.target.closest("[data-go]");if(!b)return;
+  const per={"Hari ini":"today","Minggu ini":"week","Bulan ini":"month","Tahun ini":"year","Semua waktu":"all"}[b.dataset.per]||"month",lf=per==="year"?"all":per,g=b.dataset.go;
+  if(g==="bahan"){$("#bFilter").value=lf;run(()=>goTab("bahan",renderBuy,"#buyTotal"))}
+  else if(g==="riwayat"){$("#hFilter").value=lf;$("#hStatus").value="all";run(()=>goTab("riwayat",renderHist,"#hist"))}
+  else if(g==="pembukuan"){$("#pbFilter").value=per;run(()=>goTab("pembukuan",renderPb,"#pbStats"))}
+});
 $("#pbTable").addEventListener("click",e=>{
   const d=e.target.closest("[data-pd]");
   if(d&&confirm("Hapus catatan ini?"))run(async()=>{must(await sb.from("cash_entries").delete().eq("id",d.dataset.pd));await renderPb()});
@@ -941,7 +964,7 @@ $("#pbSave").onclick=()=>run(async()=>{
 });
 $("#pbCsv").onclick=()=>{
   const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
-  const lines=[["Tanggal","Keterangan","Kategori","Masuk","Keluar","Saldo"].map(q).join(",")].concat(pbRows.map(e=>[dOnly(e.ts),e.desc,e.cat,e.inn,e.out,e.bal].map(q).join(",")));
+  const lines=[["Tanggal","Jam","Keterangan","Kategori","Masuk","Keluar","Saldo"].map(q).join(",")].concat(pbRows.map(e=>[dOnly(e.ts),e.jam,e.desc,e.cat,e.inn,e.out,e.bal].map(q).join(",")));
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+lines.join("\n")],{type:"text/csv"}));
   a.download="pembukuan-"+$("#pbFilter").value+"-"+new Date().toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();a.remove();
 };
