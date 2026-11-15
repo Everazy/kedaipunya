@@ -99,7 +99,8 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:14px}
 .qcard{border:1px solid var(--line);border-radius:calc(var(--r) - 2px);padding:14px;background:var(--surf)}
 .qno{font-size:20px;font-weight:800;color:var(--acc);cursor:pointer}
-.qb{background:var(--bad);color:#fff;margin-left:4px}
+.qb{margin-left:4px;min-width:22px;text-align:center}
+.qb.hot{background:var(--bad);color:#fff}
 #qCount{margin-left:4px;background:var(--bad);color:#fff}
 .led table{width:100%;border-collapse:collapse;font-size:.93em}
 .led th{text-align:left;color:var(--mute);font-weight:500;font-size:.85em;padding:6px}
@@ -233,7 +234,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
   <section id="antrian" class="hide">
     <div class="card">
       <div class="row sp wrap"><h2>Antrian pesanan</h2><span class="mute" id="qInfo"></span></div>
-      <div class="seg3" id="qSeg"><button class="btn pri" data-qs="unmade">Belum dibuat <span class="tag qb hide" data-qc="unmade"></span></button><button class="btn" data-qs="made">Sudah dibuat (hari ini)</button><button class="btn" data-qs="madeunpaid">Dibuat, belum bayar <span class="tag qb hide" data-qc="madeunpaid"></span></button><button class="btn" data-qs="unpaid">Semua belum dibayar <span class="tag qb hide" data-qc="unpaid"></span></button></div>
+      <div class="seg3" id="qSeg"><button class="btn pri" data-qs="unmade">Belum dibuat <span class="tag qb" data-qc="unmade">0</span></button><button class="btn" data-qs="made">Sudah dibuat (hari ini) <span class="tag qb" data-qc="made">0</span></button><button class="btn" data-qs="madeunpaid">Dibuat, belum bayar <span class="tag qb" data-qc="madeunpaid">0</span></button><button class="btn" data-qs="unpaid">Semua belum dibayar <span class="tag qb" data-qc="unpaid">0</span></button></div>
       <div class="qgrid" id="qList"></div>
     </div>
   </section>
@@ -863,6 +864,7 @@ let qMode="unmade",qList=[],lastQ=null,noRender=false;
 const qNo=t=>"#"+String(t.invoice_no).split("-").pop();
 const waitTxt=t=>{const m=Math.max(0,Math.round((Date.now()-new Date(t.created_at))/6e4));return m<60?m+" mnt":Math.floor(m/60)+" j "+(m%60)+" mnt"};
 async function renderQueue(quiet){
+  if(!quiet)pollCounts();
   if(!quiet)$("#qList").innerHTML='<div class="empty" style="grid-column:1/-1">Memuat...</div>';
   document.querySelectorAll("#qSeg [data-qs]").forEach(b=>b.classList.toggle("pri",b.dataset.qs===qMode));
   let q=sb.from("transactions").select("*,transaction_items(*)");
@@ -890,12 +892,12 @@ let lastC={};
 async function pollCounts(){
   const cnt=async q=>(await q).count||0,h=()=>sb.from("transactions").select("id",{count:"exact",head:true});
   try{
-    const [a,b,c]=await Promise.all([cnt(h().eq("is_made",false)),cnt(h().eq("is_made",true).eq("is_paid",false)),cnt(h().eq("is_paid",false))]);
-    const v={unmade:a,madeunpaid:b,unpaid:c};
+    const [a,b,c,d]=await Promise.all([cnt(h().eq("is_made",false)),cnt(h().eq("is_made",true).eq("is_paid",false)),cnt(h().eq("is_paid",false)),cnt(h().eq("is_made",true).gte("created_at",new Date(ranges().today).toISOString()))]);
+    const v={unmade:a,madeunpaid:b,unpaid:c,made:d};
     Object.keys(v).forEach(k=>{
       const el=document.querySelector('[data-qc="'+k+'"]');if(!el)return;
-      el.textContent=v[k];el.classList.toggle("hide",!v[k]);
-      if(lastC[k]!==undefined&&v[k]>lastC[k]){flash(el.closest("button"),true);if(k!=="unmade")flash($('#nav [data-t="antrian"]'),true)}
+      el.textContent=v[k];el.classList.toggle("hot",k!=="made"&&v[k]>0);
+      if(k!=="made"&&lastC[k]!==undefined&&v[k]>lastC[k]){flash(el.closest("button"),true);if(k!=="unmade")flash($('#nav [data-t="antrian"]'),true)}
     });
     lastC=v;
   }catch(e){}
