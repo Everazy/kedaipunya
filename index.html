@@ -213,7 +213,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
     <div class="card">
       <div class="row sp wrap"><h2>Riwayat transaksi</h2>
         <div class="row wrap">
-          <select id="hStatus" style="width:auto"><option value="all">Semua status</option><option value="unpaid">Belum dibayar</option><option value="unmade">Belum dibuat</option></select>
+          <select id="hStatus" style="width:auto"><option value="all">Semua status</option><option value="unpaid">Belum dibayar</option><option value="unmade">Belum dibuat</option><option value="madeunpaid">Sudah dibuat, belum bayar</option></select>
           <select id="hFilter" style="width:auto"><option value="today">Hari ini</option><option value="week">Minggu ini</option><option value="month">Bulan ini</option><option value="all">Semua</option></select>
         </div>
       </div>
@@ -232,7 +232,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
   <section id="antrian" class="hide">
     <div class="card">
       <div class="row sp wrap"><h2>Antrian pesanan</h2><span class="mute" id="qInfo"></span></div>
-      <div class="seg3" id="qSeg"><button class="btn pri" data-qs="unmade">Belum dibuat</button><button class="btn" data-qs="made">Sudah dibuat (hari ini)</button><button class="btn" data-qs="unpaid">Belum dibayar</button></div>
+      <div class="seg3" id="qSeg"><button class="btn pri" data-qs="unmade">Belum dibuat</button><button class="btn" data-qs="made">Sudah dibuat (hari ini)</button><button class="btn" data-qs="madeunpaid">Dibuat, belum bayar</button><button class="btn" data-qs="unpaid">Semua belum dibayar</button></div>
       <div class="qgrid" id="qList"></div>
     </div>
   </section>
@@ -243,7 +243,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
       <div class="row sp wrap"><h2>Buku kas</h2>
         <div class="row wrap"><select id="pbFilter" style="width:auto"><option value="today">Hari ini</option><option value="week">Minggu ini</option><option value="month" selected>Bulan ini</option><option value="year">Tahun ini</option><option value="all">Semua</option></select><button class="btn" id="pbCsv">Unduh CSV</button></div>
       </div>
-      <p class="mute" style="margin:0 0 8px;font-size:13px">Penjualan (yang sudah dibayar), belanja bahan, dan catatan manual digabung. Saldo dihitung dari 0 di awal periode.</p>
+      <p class="mute" style="margin:0 0 8px;font-size:13px">Penjualan (yang sudah dibayar, dijumlah per 12 jam: 00.00-11.59 dan 12.00-23.59 WITA), belanja bahan, dan catatan manual digabung. Saldo dihitung dari 0 di awal periode.</p>
       <div class="led" style="overflow-x:auto" id="pbTable"></div>
       <div class="sub"><h2>Per kategori</h2><div class="led" style="overflow-x:auto" id="pbCats"></div></div>
     </div>
@@ -600,7 +600,7 @@ async function renderHist(){
   const s=since($("#hFilter").value);if(s)q=q.gte("created_at",s);
   trx=must(await q);
   const st=$("#hStatus").value;
-  const list=trx.filter(t=>st==="unpaid"?!t.is_paid:st==="unmade"?!t.is_made:true);
+  const list=trx.filter(t=>st==="unpaid"?!t.is_paid:st==="unmade"?!t.is_made:st==="madeunpaid"?(t.is_made&&!t.is_paid):true);
   const urls=await signed("payment-proofs",list.map(t=>t.proof_path)).catch(()=>({}));
   $("#hist").innerHTML=list.length?list.map(t=>'<div class="line" style="cursor:pointer" data-t="'+t.id+'">'
     +(t.proof_path&&urls[t.proof_path]?'<img class="thumb" src="'+urls[t.proof_path]+'" alt="Bukti">':'<div class="thumb row" style="justify-content:center;color:var(--mute);font-size:11px;text-align:center">'+(t.method||"Belum bayar")+'</div>')
@@ -867,6 +867,7 @@ async function renderQueue(quiet){
   let q=sb.from("transactions").select("*,transaction_items(*)");
   if(qMode==="unmade")q=q.eq("is_made",false).order("created_at",{ascending:true});
   else if(qMode==="made")q=q.eq("is_made",true).gte("created_at",new Date(ranges().today).toISOString()).order("created_at",{ascending:false});
+  else if(qMode==="madeunpaid")q=q.eq("is_made",true).eq("is_paid",false).order("created_at",{ascending:true});
   else q=q.eq("is_paid",false).order("created_at",{ascending:true});
   qList=must(await q.limit(100));
   $("#qInfo").textContent=qList.length+" pesanan"+(qMode==="unmade"?" menunggu":"")+" - diperbarui otomatis";
@@ -912,10 +913,10 @@ async function renderPb(){
   ]);
   const E=[],g={};
   tr.forEach(t=>{
-    const ts=t.paid_at||t.created_at,k=new Date(new Date(ts).getTime()+tz).toISOString().slice(0,10)+"|"+t.method,x=g[k]||(g[k]={ts:ts,t0:ts,m:t.method,n:0,v:0,ids:[]});
+    const ts=t.paid_at||t.created_at,w=new Date(new Date(ts).getTime()+tz),blk=w.getUTCHours()<12?0:1,k=w.toISOString().slice(0,10)+"|"+blk+"|"+t.method,x=g[k]||(g[k]={b:blk,ts:ts,t0:ts,m:t.method,n:0,v:0,ids:[]});
     x.n++;x.v+=+t.total;x.ids.push(t.id);if(new Date(ts)>new Date(x.ts))x.ts=ts;if(new Date(ts)<new Date(x.t0))x.t0=ts;
   });
-  Object.keys(g).forEach(k=>{const x=g[k];E.push({ts:x.ts,desc:"Penjualan "+x.m+" ("+x.n+" transaksi)",cat:"Penjualan "+x.m,inn:x.v,out:0,ids:x.ids,go:"trx",jam:tOnly(x.t0)!==tOnly(x.ts)?tOnly(x.t0)+" - "+tOnly(x.ts):tOnly(x.ts)})});
+  Object.keys(g).forEach(k=>{const x=g[k];E.push({ts:x.ts,desc:"Penjualan "+x.m+" "+(x.b?"12.00-23.59":"00.00-11.59")+" ("+x.n+" transaksi)",cat:"Penjualan "+x.m,inn:x.v,out:0,ids:x.ids,go:"trx",jam:tOnly(x.t0)!==tOnly(x.ts)?tOnly(x.t0)+" - "+tOnly(x.ts):tOnly(x.ts)})});
   nt.forEach(n=>{const it=n.purchases||[];E.push({ts:n.purchased_at,desc:"Belanja bahan"+(n.note?" - "+n.note:"")+" ("+it.length+" bahan)",cat:"Belanja bahan",inn:0,out:it.reduce((a,i)=>a+ +i.price,0),go:"bahan",nid:n.id})});
   lg.forEach(x=>E.push({ts:x.purchased_at,desc:"Belanja: "+x.name,cat:"Belanja bahan",inn:0,out:+x.price,go:"bahan",nid:"L"+x.id}));
   ce.forEach(c=>E.push({ts:c.entry_date,desc:c.description||c.category,cat:c.category,inn:c.kind==="masuk"?+c.amount:0,out:c.kind==="keluar"?+c.amount:0,id:c.id}));
