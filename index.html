@@ -102,6 +102,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .qb{margin-left:4px;min-width:22px;text-align:center}
 .qb.hot{background:var(--bad);color:#fff}
 #qCount{margin-left:4px;background:var(--bad);color:#fff}
+#qDebt{margin-left:4px;background:var(--warm);color:#fff}
 .led table{width:100%;border-collapse:collapse;font-size:.93em}
 .led th{text-align:left;color:var(--mute);font-weight:500;font-size:.85em;padding:6px}
 .led td{padding:8px 6px;border-top:1px solid var(--line);vertical-align:top}
@@ -137,7 +138,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
   <div class="brand"><img id="logoImg" class="logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%232f6f5e'/%3E%3Cpath d='M28 38h38v22a14 14 0 0 1-14 14H42a14 14 0 0 1-14-14zM66 44h6a8 8 0 0 1 0 16h-6' fill='none' stroke='white' stroke-width='6'/%3E%3C/svg%3E" alt="Logo"><h1 id="shopName">Kasir Coffee Shop</h1></div>
   <nav id="nav">
     <button data-t="kasir" class="on">Kasir</button>
-    <button data-t="antrian">Antrian <span class="tag hide" id="qCount"></span></button>
+    <button data-t="antrian">Antrian <span class="tag hide" id="qCount"></span><span class="tag hide" id="qDebt" title="Sudah dibuat, belum dibayar"></span></button>
     <button data-t="member">Member</button>
     <button data-t="menu" class="adm hide">Menu</button>
     <button data-t="resep" class="adm hide">Resep</button>
@@ -774,6 +775,11 @@ async function renderReport(){
   s.sort((a,b)=>order.indexOf(a.period)-order.indexOf(b.period));
   const stf=isAdmin||isMgr;
   $("#stats").innerHTML=s.map(x=>{const l=+x.laba_kotor;return '<div class="card stat"><span class="mute">'+x.period+'</span><b class="big">'+rp(x.pendapatan)+'</b><button class="lnk" data-go="riwayat" data-per="'+x.period+'">'+x.jumlah_transaksi+' transaksi &rsaquo;</button><div class="line" style="margin-top:8px;padding:6px 0"><button class="lnk" data-go="bahan" data-per="'+x.period+'">Beli bahan &rsaquo;</button><span>'+rp(x.pengeluaran_bahan)+'</span></div><div class="row sp" style="padding-top:6px">'+(stf?'<button class="lnk" data-go="pembukuan" data-per="'+x.period+'">Laba kotor &rsaquo;</button>':'<span class="mute">Laba kotor</span>')+'<b style="color:'+(l<0?'var(--bad)':'var(--acc)')+'">'+rp(l)+'</b></div></div>'}).join("");
+  try{
+    const u=must(await sb.from("transactions").select("total").eq("is_paid",false));
+    const sum=u.reduce((a,t)=>a+ +t.total,0);
+    $("#stats").insertAdjacentHTML("afterbegin",'<div class="card stat" style="border-color:var(--warm)"><span class="mute">Piutang (belum dibayar)</span><b class="big" style="color:var(--warm)">'+rp(sum)+'</b><button class="lnk" data-debt="1">'+u.length+' pesanan &rsaquo;</button></div>');
+  }catch(e){}
   const map={};d.forEach(x=>{map[x.tanggal]=+x.pendapatan});
   const r=ranges(),days=[];let max=1;
   for(let i=6;i>=0;i--){
@@ -1174,6 +1180,7 @@ async function pollCounts(){
       if(k!=="made"&&lastC[k]!==undefined&&v[k]>lastC[k]){flash(el.closest("button"),true);if(k!=="unmade")flash($('#nav [data-t="antrian"]'),true)}
     });
     lastC=v;
+    const dq=$("#qDebt");dq.textContent=v.madeunpaid;dq.classList.toggle("hide",!v.madeunpaid);
   }catch(e){}
 }
 async function pollQueue(){
@@ -1241,6 +1248,7 @@ $("#pbTable").addEventListener("click",e=>{
   });
 });
 $("#stats").addEventListener("click",e=>{
+  if(e.target.closest("[data-debt]")){qMode="unpaid";tab("antrian");return}
   const b=e.target.closest("[data-go]");if(!b)return;
   const per={"Hari ini":"today","Minggu ini":"week","Bulan ini":"month","Tahun ini":"year","Semua waktu":"all"}[b.dataset.per]||"month",lf=per==="year"?"all":per,g=b.dataset.go;
   if(g==="bahan"){$("#bFilter").value=lf;$("#bSearch").value="";run(()=>goTab("bahan",renderBuy,"#buyTotal"))}
