@@ -638,7 +638,7 @@ function drawRows(){
   $("#nRows").innerHTML=rows.map((r,i)=>'<div class="nrow" data-i="'+i+'">'
    +'<div class="c-n"><label>Nama bahan</label><input data-f="name" list="bahanList" value="'+esc(r.name)+'" placeholder="Contoh: Biji kopi" autocomplete="off"></div>'
    +'<div class="c-u"><label>Satuan</label><select data-f="unit">'+unitOpts(r.unit)+'</select></div>'
-   +'<div class="c-z"><label>Isi per satuan (opsional)</label><div class="pair"><input data-f="size" type="number" min="0" step="any" inputmode="decimal" value="'+esc(r.size)+'" placeholder="950"><select data-f="sizeUnit" aria-label="Satuan isi">'+sizeOpts(r.sizeUnit)+'</select></div></div>'
+   +'<div class="c-z"><label>Isi per satuan (opsional)</label><input data-f="size" type="number" min="0" step="any" inputmode="decimal" value="'+esc(r.size)+'" placeholder="950"></div>'
    +'<div class="c-q"><label>Jumlah</label><input data-f="qty" type="number" min="0" step="any" inputmode="decimal" value="'+esc(r.qty)+'" placeholder="0"></div>'
    +'<div class="c-p"><label>Harga satuan (Rp)</label><input data-f="price" type="number" min="0" step="any" inputmode="numeric" value="'+esc(r.price)+'" placeholder="0"></div>'
    +'<div class="c-s"><label>Total</label><div class="sub-t">'+rp(rowTotal(r))+'</div></div>'
@@ -768,7 +768,7 @@ $("#saveNote").onclick=()=>run(async()=>{
     let id=editNote;
     if(id)must(await sb.from("purchase_notes").update(head).eq("id",id));
     else id=must(await sb.from("purchase_notes").insert(paths.length?Object.assign({photo_paths:paths},head):head).select().single()).id;
-    const ins=await sb.from("purchases").insert(items.map(r=>Object.assign({note_id:id,name:r.name.trim(),unit:r.unit||null,qty:+r.qty,unit_price:Math.round(+r.price),quantity_note:nf(r.qty)+(r.unit?" "+r.unit:"")+(+r.size>0?" (isi "+nf(r.size)+(r.sizeUnit?" "+r.sizeUnit:"")+")":""),price:rowTotal(r),purchased_at:when},+r.size>0?{size:+r.size,size_unit:r.sizeUnit||null}:{})));
+    const ins=await sb.from("purchases").insert(items.map(r=>Object.assign({note_id:id,name:r.name.trim(),unit:r.unit||null,qty:+r.qty,unit_price:Math.round(+r.price),quantity_note:nf(r.qty)+(r.unit?" "+r.unit:"")+(+r.size>0?" (isi "+nf(r.size)+")":""),price:rowTotal(r),purchased_at:when},+r.size>0?{size:+r.size,size_unit:null}:{})));
     if(ins.error){if(!editNote)await sb.from("purchase_notes").delete().eq("id",id);throw ins.error}
     if(oldIds.length)must(await sb.from("purchases").delete().in("id",oldIds));
     /* 3. ubah nota lama: perbarui daftar foto hanya kalau berubah */
