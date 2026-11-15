@@ -562,17 +562,15 @@ function drawPay(){
   let h='<h2>'+(p.payId?'Pelunasan pesanan':'Pembayaran')+'</h2><div class="row sp"><span class="mute">Total tagihan</span><span class="total">'+rp(p.total)+'</span></div>';
   if(p.payId){if(p.customer)h+='<div class="mute">Pemesan: '+esc(p.customer)+'</div>'}
   else{
-    h+='<label for="cname">Nama pemesan'+(later?' (wajib, atau pilih member)':' (opsional)')+'</label><input id="cname" value="'+esc(p.customer)+'" placeholder="Contoh: Budi" autocomplete="off">';
-    h+='<label>Kasir yang melayani</label>'+(cashiers.length?'<div class="cashiers">'+cashiers.map(c=>'<button class="btn'+(p.cashier===c.name?' on':'')+'" data-ks="'+esc(c.name)+'">'+esc(c.name)+'</button>').join("")+'</div>':'<div class="empty" style="padding:12px">Belum ada kasir. Tambahkan dulu di Pengaturan, bagian Daftar kasir.</div>');
-    if(L.enabled){
-      h+='<label>Member (opsional, cari nama atau nomor WA)</label>';
-      if(p.member)h+='<div class="pill">'+esc(p.member.name)+' - '+p.member.points+' poin<button data-mclear="1" aria-label="Lepas member">&times;</button></div><div class="mute" style="font-size:13px;margin-top:4px">Poin didapat: 1 poin per '+rp(L.rp_per_point)+' belanja.</div>';
-      else{
-        h+='<input id="msq" placeholder="Ketik nama atau WA" autocomplete="off"><div class="mres" id="mres"></div>';
-        if(p.newm)h+='<div class="loy"><input id="mnName" placeholder="Nama" autocomplete="off"><input id="mnWa" type="tel" inputmode="tel" placeholder="Nomor WA (opsional)" style="margin-top:6px" autocomplete="off"><div class="row" style="margin-top:8px"><button class="btn pri" data-msave="1" type="button">Daftarkan</button><button class="btn" data-mnew="0" type="button">Batal</button></div></div>';
-        else h+='<button class="lnk" data-mnew="1" type="button" style="margin-top:6px">+ Daftarkan member baru</button>';
-      }
+    h+='<label for="cname">Pembeli: nama atau nomor WA'+(later?' (wajib)':' (opsional)')+'</label>';
+    if(p.member){
+      h+='<div class="pill">'+esc(p.member.name)+(p.member.phone?' - '+esc(p.member.phone):'')+(L.enabled?' - '+p.member.points+' poin':'')+'<button data-mclear="1" aria-label="Lepas member">&times;</button></div>'+(L.enabled?'<div class="mute" style="font-size:13px;margin-top:4px">Poin didapat: 1 poin per '+rp(L.rp_per_point)+' belanja.</div>':'');
+    }else{
+      h+='<input id="cname" value="'+esc(p.customer)+'" placeholder="Ketik nama atau WA, contoh: Budi / 0812..." autocomplete="off"><div class="mres" id="mres"></div>';
+      if(p.newm)h+='<div class="loy"><input id="mnName" value="'+esc(p.pfName||"")+'" placeholder="Nama" autocomplete="off"><input id="mnWa" type="tel" inputmode="tel" value="'+esc(p.pfWa||"")+'" placeholder="Nomor WA (opsional)" style="margin-top:6px" autocomplete="off"><div class="row" style="margin-top:8px"><button class="btn pri" data-msave="1" type="button">Daftarkan</button><button class="btn" data-mnew="0" type="button">Batal</button></div></div>';
+      else h+='<button class="lnk" data-mnew="1" type="button" style="margin-top:6px">+ Daftarkan jadi member baru</button>';
     }
+    h+='<label>Kasir yang melayani</label>'+(cashiers.length?'<div class="cashiers">'+cashiers.map(c=>'<button class="btn'+(p.cashier===c.name?' on':'')+'" data-ks="'+esc(c.name)+'">'+esc(c.name)+'</button>').join("")+'</div>':'<div class="empty" style="padding:12px">Belum ada kasir. Tambahkan dulu di Pengaturan, bagian Daftar kasir.</div>');
     h+='<label for="cnote">Catatan pesanan (opsional)</label><input id="cnote" value="'+esc(p.note)+'" placeholder="Contoh: tanpa gula, es sedikit" maxlength="200" autocomplete="off">';
   }
   const opts=p.payId?[["Tunai","Tunai"],["QRIS","QRIS"]]:[["Tunai","Tunai"],["QRIS","QRIS"],["Nanti","Bayar nanti"]];
@@ -594,11 +592,11 @@ function drawPay(){
 }
 $("#payBtn").onclick=openPay;
 async function searchMember(){
-  const el=$("#msq");if(!el)return;const q=el.value.trim(),box=$("#mres");
+  const el=$("#cname");if(!el||pending.member)return;const q=el.value.trim(),box=$("#mres");
   if(q.length<3){box.innerHTML="";mres=[];return}
   if(!navigator.onLine){box.innerHTML='<div class="mute">Cari member butuh internet.</div>';return}
   mres=must(await sb.rpc("cari_member",{p_q:q}));
-  box.innerHTML=mres.length?mres.slice(0,6).map((m,i)=>'<button class="btn" data-mp="'+i+'" type="button">'+esc(m.name)+(m.phone?' - '+esc(m.phone):'')+' - '+m.points+' poin</button>').join(""):'<div class="mute" style="margin-top:6px">Tidak ketemu. Daftarkan member baru di bawah.</div>';
+  box.innerHTML=mres.length?mres.slice(0,6).map((m,i)=>'<button class="btn" data-mp="'+i+'" type="button">'+esc(m.name)+(m.phone?' - '+esc(m.phone):'')+(loyCfg().enabled?' - '+m.points+' poin':'')+'</button>').join(""):'<div class="mute" style="margin-top:6px">Belum terdaftar. Tekan "Daftarkan jadi member baru", atau lanjut tanpa member.</div>';
 }
 const searchMemberD=deb(()=>run(searchMember));
 $("#paySheet").addEventListener("click",e=>{
@@ -607,9 +605,13 @@ $("#paySheet").addEventListener("click",e=>{
   else if(t.dataset.mt){pending.method=t.dataset.mt;drawPay()}
   else if(t.dataset.q){pending.paid=+t.dataset.q;drawPay()}
   else if(t.dataset.cam)openCam();
-  else if(t.dataset.mp!==undefined){const m=mres[+t.dataset.mp];if(m){pending.member=m;if(!pending.customer.trim())pending.customer=m.name;drawPay()}}
+  else if(t.dataset.mp!==undefined){const m=mres[+t.dataset.mp];if(m){pending.member=m;pending.customer=m.name;drawPay()}}
   else if(t.dataset.mclear){pending.member=null;drawPay()}
-  else if(t.dataset.mnew!==undefined){pending.newm=t.dataset.mnew==="1";drawPay()}
+  else if(t.dataset.mnew!==undefined){
+    pending.newm=t.dataset.mnew==="1";
+    if(pending.newm){const c=(pending.customer||"").trim();if(/^[0-9+\s-]{6,}$/.test(c)){pending.pfWa=c;pending.pfName=""}else{pending.pfName=c;pending.pfWa=""}}
+    drawPay();
+  }
   else if(t.dataset.msave)run(async()=>{
     const n=($("#mnName").value||"").trim(),w=($("#mnWa").value||"").trim();
     if(!n&&!w){alert("Isi nama atau nomor WA.");return}
@@ -623,13 +625,12 @@ $("#paySheet").addEventListener("click",e=>{
 });
 $("#paySheet").addEventListener("input",e=>{
   if(e.target.id==="cash"){pending.paid=+e.target.value||0;$("#chg").textContent=rp(Math.max(0,pending.paid-pending.total))}
-  if(e.target.id==="cname")pending.customer=e.target.value;
+  if(e.target.id==="cname"){pending.customer=e.target.value;searchMemberD()}
   if(e.target.id==="cnote")pending.note=e.target.value;
-  if(e.target.id==="msq")searchMemberD();
   $("#done").disabled=payBad(pending);
 });
 function loyBanner(mi){
-  if(!mi)return"";const L=loyCfg(),ready=(L.benefits||[]).filter(b=>b.cost<=mi.total);
+  if(!mi||!loyCfg().enabled)return"";const L=loyCfg(),ready=(L.benefits||[]).filter(b=>b.cost<=mi.total);
   return '<div class="loy"><b>'+esc(mi.name)+'</b>: '+(mi.earned>0?'+'+mi.earned+' poin':'belum dapat poin dari transaksi ini')+' (total '+mi.total+' poin'+(L.point_value?', setara '+rp(mi.total*L.point_value):'')+')'+(ready.length?'<div style="margin-top:6px">Sudah bisa ditukar: '+ready.map(b=>esc(b.name)+' ('+b.cost+' poin)').join(", ")+'</div>':'')+'</div>';
 }
 function queueOff(args){
