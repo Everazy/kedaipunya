@@ -435,7 +435,8 @@ if(SB_URL.indexOf("ISI_")===0){$("#login").classList.remove("hide");$("#lErr").t
 const sb=supabase.createClient(SB_URL,SB_KEY);
 let menu=[],trx=[],notes=[],set={shop_name:"Kasir Coffee Shop",qris_path:null},qrisUrl="",logoUrl="",cashiers=[];
 let cart={},cat="Semua",editId=null,pending=null,newQris=null,newLogo=null,resetLogo=false;
-const loyCfg=()=>Object.assign({enabled:false,rp_per_point:10000,point_value:100,welcome:0,benefits:[]},(set&&set.loyalty)||{});
+const loyCfg=()=>Object.assign({enabled:false,mode:"trx",per_trx:1,rp_per_point:10000,point_value:100,welcome:0,benefits:[]},(set&&set.loyalty)||{});
+const loyRule=L=>L.mode==="rp"?"1 poin per "+rp(L.rp_per_point)+" belanja":L.per_trx+" poin tiap pembelian";
 
 async function signed(bucket,paths){
   paths=paths.filter(Boolean);if(!paths.length)return{};
@@ -565,7 +566,7 @@ function drawPay(){
   else{
     h+='<label for="cname">Pembeli: nama atau nomor WA'+(later?' (wajib)':' (opsional)')+'</label>';
     if(p.member){
-      h+='<div class="pill">'+esc(p.member.name)+(p.member.phone?' - '+esc(p.member.phone):'')+(L.enabled?' - '+p.member.points+' poin':'')+'<button data-mclear="1" aria-label="Lepas member">&times;</button></div>'+(L.enabled?'<div class="mute" style="font-size:13px;margin-top:4px">Poin didapat: 1 poin per '+rp(L.rp_per_point)+' belanja.</div>':'');
+      h+='<div class="pill">'+esc(p.member.name)+(p.member.phone?' - '+esc(p.member.phone):'')+(L.enabled?' - '+p.member.points+' poin':'')+'<button data-mclear="1" aria-label="Lepas member">&times;</button></div>'+(L.enabled?'<div class="mute" style="font-size:13px;margin-top:4px">Poin didapat: '+loyRule(L)+'.</div>':'');
     }else{
       h+='<input id="cname" value="'+esc(p.customer)+'" placeholder="Ketik nama atau WA, contoh: Budi / 0812..." autocomplete="off"><div class="mres" id="mres"></div>';
       if(p.newm)h+='<div class="loy"><input id="mnName" value="'+esc(p.pfName||"")+'" placeholder="Nama" autocomplete="off"><input id="mnWa" type="tel" inputmode="tel" value="'+esc(p.pfWa||"")+'" placeholder="Nomor WA (opsional)" style="margin-top:6px" autocomplete="off"><div class="row" style="margin-top:8px"><button class="btn pri" data-msave="1" type="button">Daftarkan</button><button class="btn" data-mnew="0" type="button">Batal</button></div></div>';
@@ -908,7 +909,7 @@ $("#rList").addEventListener("click",e=>{
 let mem=[];
 async function renderMember(){
   const q=$("#mSearch").value.trim(),st=isAdmin||isMgr,L=loyCfg();
-  $("#mInfo").textContent=L.enabled?"1 poin per "+rp(L.rp_per_point)+" belanja":"Loyalitas belum diaktifkan (Pengaturan)";
+  $("#mInfo").textContent=L.enabled?loyRule(L):"Loyalitas belum diaktifkan (Pengaturan)";
   if(!st&&q.length<3){$("#mList").innerHTML='<div class="empty">Ketik minimal 3 huruf nama atau 6 digit nomor WA.</div>';return}
   mem=must(await sb.rpc("cari_member",{p_q:q}));
   const so=$("#mSort").value;
@@ -1297,17 +1298,22 @@ $("#themeReset").onclick=()=>{applyTheme(Object.assign({},THEME_DEF));drawTheme(
 function drawLoy(){
   const b=loy.benefits||[];
   $("#loyBox").innerHTML='<label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input type="checkbox" id="lyOn" style="width:auto"'+(loy.enabled?' checked':'')+'> Aktifkan poin loyalitas</label>'
-   +'<label for="lyRp">Belanja berapa Rp untuk dapat 1 poin</label><input id="lyRp" type="number" min="1" inputmode="numeric" value="'+esc(loy.rp_per_point)+'">'
+   +'<label for="lyMode">Cara dapat poin</label><select id="lyMode"><option value="trx"'+(loy.mode!=="rp"?' selected':'')+'>Tiap pembelian (setiap transaksi lunas)</option><option value="rp"'+(loy.mode==="rp"?' selected':'')+'>Berdasarkan jumlah belanja (Rp)</option></select>'
+   +(loy.mode==="rp"
+     ?'<label for="lyRp">Belanja berapa Rp untuk dapat 1 poin</label><input id="lyRp" type="number" min="1" inputmode="numeric" value="'+esc(loy.rp_per_point)+'">'
+     :'<label for="lyPt">Poin yang didapat tiap pembelian</label><input id="lyPt" type="number" min="1" inputmode="numeric" value="'+esc(loy.per_trx)+'">')
    +'<label for="lyVal">Nilai 1 poin (Rp, sebagai acuan nilai benefit)</label><input id="lyVal" type="number" min="0" inputmode="numeric" value="'+esc(loy.point_value)+'">'
    +'<label for="lyWel">Bonus poin untuk member baru</label><input id="lyWel" type="number" min="0" inputmode="numeric" value="'+esc(loy.welcome)+'">'
    +'<label>Benefit yang bisa ditukar</label>'
    +b.map((x,i)=>'<div class="row" style="margin-bottom:6px"><input data-lb="name" data-i="'+i+'" value="'+esc(x.name)+'" placeholder="Contoh: Gratis 1 kopi susu" style="flex:2"><input data-lb="cost" data-i="'+i+'" type="number" min="1" inputmode="numeric" value="'+esc(x.cost)+'" placeholder="Poin" style="flex:1"><button class="btn bad" data-lx="'+i+'" type="button" aria-label="Hapus benefit">&times;</button></div>').join("")
    +'<button class="btn" id="lyAdd" type="button">+ Tambah benefit</button>'
-   +'<p class="mute" style="font-size:13px;margin:8px 0 0">Contoh: belanja Rp10.000 = 1 poin, benefit "Gratis 1 minuman" = 50 poin. Poin masuk saat transaksi lunas, dan kasir akan melihat notifikasi poin di struk.</p>';
+   +'<p class="mute" style="font-size:13px;margin:8px 0 0">Contoh: tiap pembelian = 1 poin, benefit "Gratis 1 minuman" = 50 poin. Poin masuk saat transaksi lunas, dan kasir akan melihat notifikasi poin di struk.</p>';
 }
 $("#loyBox").addEventListener("input",e=>{
   const t=e.target;
   if(t.id==="lyOn")loy.enabled=t.checked;
+  else if(t.id==="lyMode"){loy.mode=t.value;drawLoy()}
+  else if(t.id==="lyPt")loy.per_trx=+t.value;
   else if(t.id==="lyRp")loy.rp_per_point=+t.value;
   else if(t.id==="lyVal")loy.point_value=+t.value;
   else if(t.id==="lyWel")loy.welcome=+t.value;
@@ -1360,7 +1366,7 @@ $("#qrisFile").addEventListener("change",e=>{
 $("#saveSet").onclick=()=>run(async()=>{
   const b=$("#saveSet");b.disabled=true;
   try{
-    const ly={enabled:!!loy.enabled,rp_per_point:+loy.rp_per_point>0?Math.round(+loy.rp_per_point):10000,point_value:Math.max(0,+loy.point_value||0),welcome:Math.max(0,Math.round(+loy.welcome||0)),benefits:(loy.benefits||[]).filter(x=>String(x.name).trim()&&+x.cost>0).map(x=>({name:String(x.name).trim(),cost:Math.round(+x.cost)}))};
+    const ly={enabled:!!loy.enabled,mode:loy.mode==="rp"?"rp":"trx",per_trx:Math.max(1,Math.round(+loy.per_trx||1)),rp_per_point:+loy.rp_per_point>0?Math.round(+loy.rp_per_point):10000,point_value:Math.max(0,+loy.point_value||0),welcome:Math.max(0,Math.round(+loy.welcome||0)),benefits:(loy.benefits||[]).filter(x=>String(x.name).trim()&&+x.cost>0).map(x=>({name:String(x.name).trim(),cost:Math.round(+x.cost)}))};
     const row={id:1,shop_name:$("#sName").value.trim()||"Kasir Coffee Shop",qris_path:set.qris_path,logo_path:set.logo_path||null,theme:Object.assign({},theme),loyalty:ly,updated_at:new Date().toISOString()};
     const oldQ=set.qris_path,oldL=set.logo_path,gone=[];
     if(newQris){
