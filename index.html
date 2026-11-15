@@ -287,7 +287,7 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 
   <section id="antrian" class="hide">
     <div class="card">
-      <div class="row sp wrap"><h2>Antrian pesanan</h2><span class="mute" id="qInfo"></span></div>
+      <div class="row sp wrap"><h2>Antrian pesanan</h2><div class="row wrap"><select id="qRange" style="width:auto" aria-label="Rentang tanggal"><option value="all">Semua tanggal</option><option value="today">Hari ini</option><option value="yest">Kemarin</option><option value="d3">3 hari terakhir</option><option value="week">Minggu ini</option></select><span class="mute" id="qInfo"></span></div></div>
       <div class="seg3" id="qSeg"><button class="btn pri" data-qs="unmade">Belum dibuat <span class="tag qb" data-qc="unmade">0</span></button><button class="btn" data-qs="made">Sudah dibuat (hari ini) <span class="tag qb" data-qc="made">0</span></button><button class="btn" data-qs="madeunpaid">Dibuat, belum bayar <span class="tag qb" data-qc="madeunpaid">0</span></button><button class="btn" data-qs="unpaid">Semua belum dibayar <span class="tag qb" data-qc="unpaid">0</span></button></div>
       <div class="qgrid" id="qList"></div>
     </div>
@@ -1141,19 +1141,23 @@ $("#buyList").addEventListener("click",e=>{
 /* ---------- antrian ---------- */
 let qMode="unmade",qList=[],lastQ=null,noRender=false;
 const qNo=t=>"#"+String(t.invoice_no).split("-").pop();
-const waitTxt=t=>{const m=Math.max(0,Math.round((Date.now()-new Date(t.created_at))/6e4));return m<60?m+" mnt":Math.floor(m/60)+" j "+(m%60)+" mnt"};
+const waitTxt=t=>{const m=Math.max(0,Math.round((Date.now()-new Date(t.created_at))/6e4));return m<60?m+" mnt":m<1440?Math.floor(m/60)+" j "+(m%60)+" mnt":Math.floor(m/1440)+" hari"};
+const ageTag=t=>{const R=ranges().today,c=new Date(t.created_at).getTime();if(c>=R)return"";const d=Math.ceil((R-c)/864e5);return' <span class="tag'+(t.is_paid?'':' red')+'">'+(d===1?"Kemarin":d+" hari lalu")+'</span>'};
 async function renderQueue(quiet){
   if(!quiet)pollCounts();
   if(!quiet)$("#qList").innerHTML='<div class="empty" style="grid-column:1/-1">Memuat...</div>';
   document.querySelectorAll("#qSeg [data-qs]").forEach(b=>b.classList.toggle("pri",b.dataset.qs===qMode));
   let q=sb.from("transactions").select("*,transaction_items(*)");
   if(qMode==="unmade")q=q.eq("is_made",false).order("created_at",{ascending:true});
-  else if(qMode==="made")q=q.eq("is_made",true).gte("created_at",new Date(ranges().today).toISOString()).order("created_at",{ascending:false});
+  else if(qMode==="made")q=q.eq("is_made",true).order("created_at",{ascending:false});
   else if(qMode==="madeunpaid")q=q.eq("is_made",true).eq("is_paid",false).order("created_at",{ascending:true});
   else q=q.eq("is_paid",false).order("created_at",{ascending:true});
-  qList=must(await q.limit(100));
+  const rg=$("#qRange").value,R=ranges(),lo={today:R.today,yest:R.today-864e5,d3:R.today-2*864e5,week:R.week}[rg];
+  if(lo!=null)q=q.gte("created_at",new Date(lo).toISOString());
+  if(rg==="yest")q=q.lt("created_at",new Date(R.today).toISOString());
+  qList=must(await q.limit(200));
   $("#qInfo").textContent=qList.length+" pesanan"+(qMode==="unmade"?" menunggu":"")+" - diperbarui otomatis";
-  $("#qList").innerHTML=qList.length?qList.map(t=>'<div class="qcard"><div class="row sp"><b class="qno" data-qt="'+t.id+'">'+qNo(t)+'</b><span class="mute">'+(t.is_made?fmt(t.created_at):'Menunggu '+waitTxt(t))+'</span></div>'
+  $("#qList").innerHTML=qList.length?qList.map(t=>'<div class="qcard"><div class="row sp"><span><b class="qno" data-qt="'+t.id+'">'+qNo(t)+'</b>'+ageTag(t)+'</span><span class="mute">'+(t.is_made||ageTag(t)?fmt(t.created_at):'Menunggu '+waitTxt(t))+'</span></div>'
     +'<div style="font-weight:700;margin:2px 0 8px">'+esc(t.customer_name||"Tanpa nama")+(t.customer_id?' <span class="tag">Member</span>':'')+'</div>'
     +(t.transaction_items||[]).map(i=>'<div>'+i.qty+' x '+esc(i.name)+'</div>').join("")
     +(t.note?'<div style="margin-top:6px"><b>Catatan:</b> '+esc(t.note)+'</div>':'')
@@ -1161,7 +1165,8 @@ async function renderQueue(quiet){
     +'<div class="row"><button class="btn'+(t.is_made?'':' pri')+'" style="flex:1" data-qm="'+t.id+'" data-v="'+(t.is_made?0:1)+'">'+(t.is_made?'Batal dibuat':'Sudah dibuat')+'</button>'+(t.is_paid?'':'<button class="btn" data-qp="'+t.id+'">Bayar</button>')+'</div></div>').join("")
     :'<div class="empty" style="grid-column:1/-1">'+(qMode==="unmade"?"Tidak ada pesanan yang menunggu.":"Tidak ada pesanan.")+'</div>';
 }
-$("#qSeg").addEventListener("click",e=>{const b=e.target.closest("[data-qs]");if(b){qMode=b.dataset.qs;run(()=>renderQueue())}});
+$("#qSeg").addEventListener("click",e=>{const b=e.target.closest("[data-qs]");if(b){qMode=b.dataset.qs;$("#qRange").value=qMode==="made"?"today":"all";run(()=>renderQueue())}});
+$("#qRange").onchange=()=>run(()=>renderQueue());
 $("#qList").addEventListener("click",e=>{
   const m=e.target.closest("[data-qm]"),p=e.target.closest("[data-qp]"),d=e.target.closest("[data-qt]");
   if(m)run(async()=>{must(await sb.rpc("ubah_status_pesanan",{p_id:+m.dataset.qm,p_made:m.dataset.v==="1"}));await renderQueue(true);pollQueue()});
