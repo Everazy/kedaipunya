@@ -199,7 +199,10 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
   <section id="riwayat" class="hide">
     <div class="card">
       <div class="row sp wrap"><h2>Riwayat transaksi</h2>
-        <select id="hFilter" style="width:auto"><option value="today">Hari ini</option><option value="week">Minggu ini</option><option value="month">Bulan ini</option><option value="all">Semua</option></select>
+        <div class="row wrap">
+          <select id="hStatus" style="width:auto"><option value="all">Semua status</option><option value="unpaid">Belum dibayar</option><option value="unmade">Belum dibuat</option></select>
+          <select id="hFilter" style="width:auto"><option value="today">Hari ini</option><option value="week">Minggu ini</option><option value="month">Bulan ini</option><option value="all">Semua</option></select>
+        </div>
       </div>
       <div id="hist"></div>
     </div>
@@ -410,23 +413,35 @@ $("#clearBtn").onclick=()=>{cart={};renderCart()};
 function openPay(){
   let last="";try{last=localStorage.getItem("kasir_terakhir")||""}catch(e){}
   const ok=cashiers.find(c=>c.name===last);
-  pending={items:cartItems(),total:cartTotal(),method:"Tunai",proof:null,paid:0,cashier:ok?ok.name:null};drawPay();$("#payModal").classList.add("open")}
+  pending={items:cartItems(),total:cartTotal(),method:"Tunai",proof:null,paid:0,cashier:ok?ok.name:null,customer:"",payId:null};
+  drawPay();$("#payModal").classList.add("open")}
+function payExisting(t){
+  pending={items:[],total:+t.total,method:"Tunai",proof:null,paid:0,cashier:t.cashier_name||"",customer:t.customer_name||"",payId:t.id};
+  $("#viewModal").classList.remove("open");drawPay();$("#payModal").classList.add("open")}
+const payBad=p=>(!p.payId&&!p.cashier)||(p.method==="Nanti"&&!p.customer.trim())||(p.method==="Tunai"&&p.paid<p.total)||(p.method==="QRIS"&&!p.proof);
 function drawPay(){
-  const p=pending;
-  let h='<h2>Pembayaran</h2><div class="row sp"><span class="mute">Total tagihan</span><span class="total">'+rp(p.total)+'</span></div>';
-  h+='<label>Kasir yang melayani</label>'+(cashiers.length?'<div class="cashiers">'+cashiers.map(c=>'<button class="btn'+(p.cashier===c.name?' on':'')+'" data-ks="'+esc(c.name)+'">'+esc(c.name)+'</button>').join("")+'</div>':'<div class="empty" style="padding:12px">Belum ada kasir. Tambahkan dulu di Pengaturan, bagian Daftar kasir.</div>');
-  h+='<div class="seg"><button class="btn'+(p.method==="Tunai"?' pri':'')+'" data-mt="Tunai">Tunai</button><button class="btn'+(p.method==="QRIS"?' pri':'')+'" data-mt="QRIS">QRIS</button></div>';
+  const p=pending,later=p.method==="Nanti";
+  let h='<h2>'+(p.payId?'Pelunasan pesanan':'Pembayaran')+'</h2><div class="row sp"><span class="mute">Total tagihan</span><span class="total">'+rp(p.total)+'</span></div>';
+  if(p.payId){if(p.customer)h+='<div class="mute">Pemesan: '+esc(p.customer)+'</div>'}
+  else{
+    h+='<label for="cname">Nama pemesan'+(later?' (wajib)':' (opsional)')+'</label><input id="cname" value="'+esc(p.customer)+'" placeholder="Contoh: Budi" autocomplete="off">';
+    h+='<label>Kasir yang melayani</label>'+(cashiers.length?'<div class="cashiers">'+cashiers.map(c=>'<button class="btn'+(p.cashier===c.name?' on':'')+'" data-ks="'+esc(c.name)+'">'+esc(c.name)+'</button>').join("")+'</div>':'<div class="empty" style="padding:12px">Belum ada kasir. Tambahkan dulu di Pengaturan, bagian Daftar kasir.</div>');
+  }
+  const opts=p.payId?[["Tunai","Tunai"],["QRIS","QRIS"]]:[["Tunai","Tunai"],["QRIS","QRIS"],["Nanti","Bayar nanti"]];
+  h+='<div class="seg3">'+opts.map(o=>'<button class="btn'+(p.method===o[0]?' pri':'')+'" data-mt="'+o[0]+'">'+o[1]+'</button>').join("")+'</div>';
   if(p.method==="Tunai"){
     h+='<label for="cash">Uang diterima</label><input id="cash" type="number" inputmode="numeric" value="'+(p.paid||"")+'" placeholder="0">';
     h+='<div class="row wrap" style="margin-top:8px">'+[p.total,50000,100000].filter((v,i,a)=>a.indexOf(v)===i).map(v=>'<button class="btn" data-q="'+v+'">'+rp(v)+'</button>').join("")+'</div>';
     h+='<div class="row sp" style="margin-top:12px"><span class="mute">Kembalian</span><b id="chg">'+rp(Math.max(0,p.paid-p.total))+'</b></div>';
-  }else{
+  }else if(p.method==="QRIS"){
     h+=qrisUrl?'<img class="qris" src="'+qrisUrl+'" alt="QRIS">':'<div class="empty">QRIS belum diunggah. Buka Pengaturan untuk mengunggah gambar QRIS kamu.</div>';
     h+='<p class="mute" style="margin:6px 0">Minta pelanggan scan dan bayar '+rp(p.total)+', lalu foto bukti transfernya.</p>';
     if(p.proof)h+='<img class="big" src="'+p.proof+'" alt="Bukti transaksi" style="margin-bottom:8px">';
     h+='<button class="btn full" data-cam="1">'+(p.proof?'Foto ulang bukti':'Gunakan kamera untuk foto bukti')+'</button>';
+  }else{
+    h+='<p class="mute" style="margin:10px 0">Pesanan dicatat sebagai <b>belum dibayar</b>. Pelanggan bisa membayar nanti lewat tab Riwayat.</p>';
   }
-  h+='<div class="row" style="margin-top:14px"><button class="btn pri" style="flex:1" id="done"'+(!p.cashier||(p.method==="Tunai"&&p.paid<p.total)||(p.method==="QRIS"&&!p.proof)?' disabled':'')+'>Selesaikan transaksi</button><button class="btn" id="cancelPay">Batal</button></div>';
+  h+='<div class="row" style="margin-top:14px"><button class="btn pri" style="flex:1" id="done"'+(payBad(p)?' disabled':'')+'>'+(later?'Simpan pesanan':'Selesaikan transaksi')+'</button><button class="btn" id="cancelPay">Batal</button></div>';
   $("#paySheet").innerHTML=h;
 }
 $("#payBtn").onclick=openPay;
@@ -440,21 +455,30 @@ $("#paySheet").addEventListener("click",e=>{
   else if(t.id==="done")run(finish);
 });
 $("#paySheet").addEventListener("input",e=>{
-  if(e.target.id==="cash"){pending.paid=+e.target.value||0;$("#done").disabled=!pending.cashier||pending.paid<pending.total;$("#chg").textContent=rp(Math.max(0,pending.paid-pending.total))}
+  if(e.target.id==="cash"){pending.paid=+e.target.value||0;$("#chg").textContent=rp(Math.max(0,pending.paid-pending.total))}
+  if(e.target.id==="cname")pending.customer=e.target.value;
+  $("#done").disabled=payBad(pending);
 });
 async function finish(){
   const btn=$("#done");btn.disabled=true;btn.textContent="Menyimpan...";
   try{
-    const p=pending,r=ranges(),qris=p.method==="QRIS";
+    const p=pending,r=ranges(),qris=p.method==="QRIS",later=p.method==="Nanti";
     const ds=new Date(r.today+tz).toISOString().slice(0,10).replace(/-/g,"");
     let proof=null;
     if(qris){
       const blob=await (await fetch(p.proof)).blob();proof=ds+"/"+Date.now()+".jpg";
       must(await sb.storage.from("payment-proofs").upload(proof,blob,{contentType:"image/jpeg"}));
     }
-    const t=must(await sb.rpc("buat_transaksi",{p_items:p.items.map(i=>({id:i.id,qty:i.qty})),p_method:p.method,p_paid:qris?p.total:p.paid,p_cashier:p.cashier,p_proof:proof}));
-    cart={};renderCart();$("#payModal").classList.remove("open");showTrx(t,true,p.proof);
-  }catch(e){btn.disabled=false;btn.textContent="Selesaikan transaksi";throw e}
+    let t;
+    if(p.payId){
+      t=must(await sb.rpc("bayar_transaksi",{p_id:p.payId,p_method:p.method,p_paid:qris?p.total:p.paid,p_proof:proof}));
+    }else{
+      t=must(await sb.rpc("buat_transaksi",{p_items:p.items.map(i=>({id:i.id,qty:i.qty})),p_method:later?null:p.method,p_paid:later?0:(qris?p.total:p.paid),p_cashier:p.cashier,p_proof:proof,p_customer:p.customer.trim()||null,p_is_paid:!later}));
+      cart={};renderCart();
+    }
+    $("#payModal").classList.remove("open");showTrx(t,true,p.proof);
+    if(!$("#riwayat").classList.contains("hide"))renderHist();
+  }catch(e){btn.disabled=false;btn.textContent=pending.method==="Nanti"?"Simpan pesanan":"Selesaikan transaksi";throw e}
 }
 
 /* ---------- kamera ---------- */
@@ -483,21 +507,36 @@ $("#camInput").addEventListener("change",e=>{
 });
 
 /* ---------- detail transaksi ---------- */
+let viewTrx=null;
 async function showTrx(t,fresh,localProof){
+  viewTrx=t;
   const items=t.transaction_items||[];
   let proofUrl=localProof||"";
   if(!proofUrl&&t.proof_path){try{proofUrl=(await signed("payment-proofs",[t.proof_path]))[t.proof_path]||""}catch(e){}}
-  let h='<h2>'+(fresh?'Transaksi berhasil':'Detail transaksi')+'</h2><div class="mute">'+esc(t.invoice_no)+' - '+fmt(t.created_at)+'</div>';
+  let h='<h2>'+(fresh?(t.is_paid?'Transaksi berhasil':'Pesanan tersimpan (belum dibayar)'):'Detail transaksi')+'</h2><div class="mute">'+esc(t.invoice_no)+' - '+fmt(t.created_at)+'</div>';
   h+=items.map(i=>'<div class="line"><span>'+i.qty+' x '+esc(i.name)+'</span><span>'+rp(i.qty*i.price)+'</span></div>').join("");
-  h+='<div class="row sp" style="margin-top:10px"><b>Total</b><b>'+rp(t.total)+'</b></div><div class="row sp mute"><span>Metode</span><span>'+t.method+'</span></div>'+(t.cashier_name?'<div class="row sp mute"><span>Kasir</span><span>'+esc(t.cashier_name)+'</span></div>':'');
-  if(t.method==="Tunai")h+='<div class="row sp mute"><span>Diterima / kembali</span><span>'+rp(t.paid)+' / '+rp(t.change_amount)+'</span></div>';
+  h+='<div class="row sp" style="margin-top:10px"><b>Total</b><b>'+rp(t.total)+'</b></div>';
+  h+='<div class="row sp mute"><span>Metode</span><span>'+(t.method||"-")+'</span></div>'
+    +(t.customer_name?'<div class="row sp mute"><span>Pemesan</span><span>'+esc(t.customer_name)+'</span></div>':'')
+    +(t.cashier_name?'<div class="row sp mute"><span>Kasir</span><span>'+esc(t.cashier_name)+'</span></div>':'')
+    +'<div class="row sp mute"><span>Pembayaran</span><span>'+(t.is_paid?'Sudah dibayar':'<b style="color:var(--bad)">Belum dibayar</b>')+'</span></div>'
+    +'<div class="row sp mute"><span>Pesanan</span><span>'+(t.is_made?'Sudah dibuat':'Belum dibuat')+'</span></div>';
+  if(t.is_paid&&t.method==="Tunai")h+='<div class="row sp mute"><span>Diterima / kembali</span><span>'+rp(t.paid)+' / '+rp(t.change_amount)+'</span></div>';
   if(proofUrl)h+='<p class="mute" style="margin:12px 0 6px">Bukti transaksi</p><img class="big" src="'+proofUrl+'" alt="Bukti transaksi">';
-  if(isAdmin)h+='<button class="btn bad full" style="margin-top:14px" id="delTrx" data-id="'+t.id+'" data-proof="'+esc(t.proof_path||"")+'">Hapus transaksi ini</button>';
-  h+='<button class="btn full" style="margin-top:'+(isAdmin?8:14)+'px" id="closeView">Tutup</button>';
+  if(!t.is_paid)h+='<button class="btn pri full" style="margin-top:14px" id="payLater">Bayar sekarang</button>';
+  h+='<button class="btn full" style="margin-top:8px" id="togMade" data-id="'+t.id+'" data-v="'+(t.is_made?0:1)+'">'+(t.is_made?'Tandai belum dibuat':'Tandai sudah dibuat')+'</button>';
+  if(isAdmin)h+='<button class="btn bad full" style="margin-top:8px" id="delTrx" data-id="'+t.id+'" data-proof="'+esc(t.proof_path||"")+'">Hapus transaksi ini</button>';
+  h+='<button class="btn full" style="margin-top:8px" id="closeView">Tutup</button>';
   $("#viewSheet").innerHTML=h;$("#viewModal").classList.add("open");
 }
 $("#viewSheet").addEventListener("click",e=>{
   if(e.target.id==="closeView")$("#viewModal").classList.remove("open");
+  if(e.target.id==="payLater"&&viewTrx)payExisting(viewTrx);
+  if(e.target.id==="togMade")run(async()=>{
+    must(await sb.rpc("ubah_status_pesanan",{p_id:+e.target.dataset.id,p_made:e.target.dataset.v==="1"}));
+    $("#viewModal").classList.remove("open");
+    if(!$("#riwayat").classList.contains("hide"))await renderHist();
+  });
   if(e.target.id==="delTrx"&&isAdmin){
     const id=e.target.dataset.id,pf=e.target.dataset.proof;
     if(confirm("Hapus transaksi ini? Tindakan ini tidak bisa dibatalkan."))run(async()=>{
@@ -517,11 +556,25 @@ async function renderHist(){
   let q=sb.from("transactions").select("*,transaction_items(*)").order("created_at",{ascending:false}).limit(300);
   const s=since($("#hFilter").value);if(s)q=q.gte("created_at",s);
   trx=must(await q);
-  const urls=await signed("payment-proofs",trx.map(t=>t.proof_path)).catch(()=>({}));
-  $("#hist").innerHTML=trx.length?trx.map(t=>'<div class="line" style="cursor:pointer" data-t="'+t.id+'">'+(t.proof_path&&urls[t.proof_path]?'<img class="thumb" src="'+urls[t.proof_path]+'" alt="Bukti">':'<div class="thumb row" style="justify-content:center;color:var(--mute);font-size:11px">'+t.method+'</div>')+'<div style="flex:1"><b>'+esc(t.invoice_no)+'</b> <span class="tag">'+t.method+'</span><div class="mute">'+fmt(t.created_at)+' - '+t.transaction_items.reduce((a,i)=>a+i.qty,0)+' item'+(t.cashier_name?' - Kasir: '+esc(t.cashier_name):'')+'</div></div><b>'+rp(t.total)+'</b></div>').join(""):'<div class="empty">Belum ada transaksi pada periode ini.</div>';
+  const st=$("#hStatus").value;
+  const list=trx.filter(t=>st==="unpaid"?!t.is_paid:st==="unmade"?!t.is_made:true);
+  const urls=await signed("payment-proofs",list.map(t=>t.proof_path)).catch(()=>({}));
+  $("#hist").innerHTML=list.length?list.map(t=>'<div class="line" style="cursor:pointer" data-t="'+t.id+'">'
+    +(t.proof_path&&urls[t.proof_path]?'<img class="thumb" src="'+urls[t.proof_path]+'" alt="Bukti">':'<div class="thumb row" style="justify-content:center;color:var(--mute);font-size:11px;text-align:center">'+(t.method||"Belum bayar")+'</div>')
+    +'<div style="flex:1"><b>'+esc(t.invoice_no)+'</b> '+(t.method?'<span class="tag">'+t.method+'</span> ':'')
+    +(t.is_paid?'':'<span class="tag" style="background:var(--bad);color:#fff">Belum bayar</span> ')
+    +'<span class="tag">'+(t.is_made?'Sudah dibuat':'Belum dibuat')+'</span>'
+    +'<div class="mute">'+(t.customer_name?'<b>'+esc(t.customer_name)+'</b> - ':'')+fmt(t.created_at)+' - '+t.transaction_items.reduce((a,i)=>a+i.qty,0)+' item'+(t.cashier_name?' - Kasir: '+esc(t.cashier_name):'')+'</div></div>'
+    +'<div style="text-align:right"><b>'+rp(t.total)+'</b><div style="margin-top:6px"><button class="btn" data-mk="'+t.id+'" data-v="'+(t.is_made?0:1)+'" style="padding:4px 10px;font-size:12px">'+(t.is_made?'Batal dibuat':'Sudah dibuat')+'</button></div></div></div>').join("")
+    :'<div class="empty">Tidak ada transaksi untuk filter ini.</div>';
 }
 $("#hFilter").onchange=()=>run(renderHist);
-$("#hist").addEventListener("click",e=>{const l=e.target.closest("[data-t]");if(l){const t=trx.find(x=>x.id==l.dataset.t);if(t)showTrx(t)}});
+$("#hStatus").onchange=()=>run(renderHist);
+$("#hist").addEventListener("click",e=>{
+  const mk=e.target.closest("[data-mk]");
+  if(mk){run(async()=>{must(await sb.rpc("ubah_status_pesanan",{p_id:+mk.dataset.mk,p_made:mk.dataset.v==="1"}));await renderHist()});return}
+  const l=e.target.closest("[data-t]");if(l){const t=trx.find(x=>x.id==l.dataset.t);if(t)showTrx(t)}
+});
 
 /* ---------- laporan ---------- */
 async function renderReport(){
