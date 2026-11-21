@@ -58,6 +58,8 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 .sheet img.big,.sheet video{width:100%;border-radius:10px;border:1px solid var(--line);background:#000}
 .qris{max-width:260px;margin:8px auto;display:block;border-radius:8px;background:#fff}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.guest #kasir .grid{grid-template-columns:1fr}.guest .cart,.guest #payBtn{display:none}.guest .item{pointer-events:none;cursor:default}.guest .item:hover{border-color:var(--line)}
+a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.bzr:last-child{border:0}
 .hide{display:none!important}
 #login{max-width:380px;margin:8vh auto;padding:0 20px}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
@@ -137,19 +139,20 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
 <header>
   <div class="brand"><img id="logoImg" class="logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%232f6f5e'/%3E%3Cpath d='M28 38h38v22a14 14 0 0 1-14 14H42a14 14 0 0 1-14-14zM66 44h6a8 8 0 0 1 0 16h-6' fill='none' stroke='white' stroke-width='6'/%3E%3C/svg%3E" alt="Logo"><h1 id="shopName">Kasir Coffee Shop</h1></div>
   <nav id="nav">
-    <button data-t="kasir" class="on">Kasir</button>
-    <button data-t="antrian">Antrian <span class="tag hide" id="qCount"></span><span class="tag hide" id="qDebt" title="Sudah dibuat, belum dibayar"></span></button>
-    <button data-t="member">Member</button>
+    <button data-t="kasir" class="on" id="tabKasir">Kasir</button>
+    <button data-t="bazar">Bazar</button>
+    <button data-t="antrian" class="ses">Antrian <span class="tag hide" id="qCount"></span><span class="tag hide" id="qDebt" title="Sudah dibuat, belum dibayar"></span></button>
+    <button data-t="member" class="ses">Member</button>
     <button data-t="menu" class="adm hide">Menu</button>
     <button data-t="resep" class="adm hide">Resep</button>
-    <button data-t="bahan">Bahan</button>
-    <button data-t="riwayat">Riwayat</button>
-    <button data-t="laporan">Laporan</button>
+    <button data-t="bahan" class="ses">Bahan</button>
+    <button data-t="riwayat" class="ses">Riwayat</button>
+    <button data-t="laporan" class="ses">Laporan</button>
     <button data-t="pembukuan" class="stf hide">Pembukuan</button>
     <button data-t="atur" class="adm hide">Pengaturan</button>
     <span class="tag red hide" id="offTag"></span>
     <span class="tag" id="roleTag"></span>
-    <button id="adminLogin" class="hide">Masuk Admin</button>
+    <button id="adminLogin" class="hide">Masuk Staf</button>
     <button id="logout" class="hide" style="color:var(--bad)">Keluar</button>
   </nav>
 </header>
@@ -169,6 +172,11 @@ label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
         <button class="btn full" id="clearBtn" style="margin-top:8px">Kosongkan</button>
       </div>
     </div>
+  </section>
+
+  <section id="bazar" class="hide">
+    <h2>Bazar &amp; Open PO</h2><div id="bzBox" class="mute">Memuat…</div>
+    <p><a class="btn pri" href="https://bapoin.vercel.app" target="_blank" rel="noopener">Buka web bazar</a></p>
   </section>
 
   <section id="menu" class="hide">
@@ -458,7 +466,7 @@ $("#lBack").onclick=()=>{$("#login").classList.add("hide");$("#app").classList.r
 $("#lPass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
 $("#logout").onclick=async()=>{await sb.auth.signOut();location.reload()};
 
-let isAdmin=false,isMgr=false;
+let isAdmin=false,isMgr=false,hasSes=false;
 async function boot(){
   $("#login").classList.add("hide");$("#app").classList.remove("hide");
   let ses=null;try{ses=(await sb.auth.getSession()).data.session}catch(e){}
@@ -471,13 +479,16 @@ async function boot(){
     }catch(e){role=cacheGet("role")||""}
     cacheSet("role",role);
   }
-  isAdmin=role==="admin";isMgr=role==="manager";
+  isAdmin=role==="admin";isMgr=role==="manager";hasSes=!!ses;
+  document.body.classList.toggle("guest",!hasSes);
+  document.querySelectorAll(".ses").forEach(b=>b.classList.toggle("hide",!hasSes));
+  $("#tabKasir").textContent=hasSes?"Kasir":"Menu";
   $("#logout").classList.toggle("hide",!ses);$("#adminLogin").classList.toggle("hide",!!ses);
   document.querySelectorAll(".adm").forEach(b=>b.classList.toggle("hide",!isAdmin));
   document.querySelectorAll(".stf").forEach(b=>b.classList.toggle("hide",!(isAdmin||isMgr)));
-  $("#roleTag").textContent=isAdmin?"Admin":isMgr?"Manager":"Kasir";
+  $("#roleTag").textContent=isAdmin?"Admin":isMgr?"Manager":hasSes?"Kasir":"Tamu";
   try{await Promise.all([loadMenu(),loadSet(),loadCashiers()])}catch(e){fail(e)}
-  renderKasir();pollQueue();
+  renderKasir();if(hasSes)pollQueue();
 }
 async function loadMenu(){
   try{menu=must(await sb.from("menu_items").select("*").eq("is_active",true).order("category").order("name")).map(m=>({id:m.id,name:m.name,cat:m.category,price:+m.price}));cacheSet("menu",menu)}
@@ -500,13 +511,15 @@ async function loadCashiers(){
 }
 
 /* ---------- tab ---------- */
-const TABS=["kasir","antrian","member","menu","resep","bahan","riwayat","laporan","pembukuan","atur"];
+const TABS=["kasir","bazar","antrian","member","menu","resep","bahan","riwayat","laporan","pembukuan","atur"];
 function tab(t){
+  if(!hasSes&&t!=="kasir"&&t!=="bazar")return;
   if(!isAdmin&&(t==="menu"||t==="atur"||t==="resep"))return;
   if(!isAdmin&&!isMgr&&t==="pembukuan")return;
   if(t!=="atur")discardDraft();
   TABS.forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
   document.querySelectorAll("#nav button[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  if(t==="bazar")renderBazar();
   if(t==="riwayat"&&!noRender)run(renderHist);
   if(t==="laporan"){run(renderReport);if(isAdmin||isMgr)run(renderDeep)}
   if(t==="menu")renderAdmin();
@@ -541,7 +554,7 @@ function renderCart(){
 $("#q").addEventListener("input",renderKasir);
 $("#qSort").addEventListener("change",renderKasir);
 $("#cats").addEventListener("click",e=>{if(e.target.dataset.c){cat=e.target.dataset.c;renderKasir()}});
-$("#menuGrid").addEventListener("click",e=>{const b=e.target.closest(".item");if(b){cart[b.dataset.id]=(cart[b.dataset.id]||0)+1;renderCart()}});
+$("#menuGrid").addEventListener("click",e=>{const b=e.target.closest(".item");if(b&&hasSes){cart[b.dataset.id]=(cart[b.dataset.id]||0)+1;renderCart()}});
 $("#cartList").addEventListener("click",e=>{
   const m=e.target.dataset.m,p=e.target.dataset.p;
   if(p)cart[p]++;if(m){cart[m]--;if(cart[m]<=0)delete cart[m]}renderCart();
@@ -1192,6 +1205,7 @@ async function pollCounts(){
   }catch(e){}
 }
 async function pollQueue(){
+  if(!hasSes)return;
   pollCounts();
   try{
     const r=await sb.from("transactions").select("id",{count:"exact",head:true}).eq("is_made",false),n=r.count||0,b=$("#qCount");
@@ -1427,6 +1441,25 @@ async function oqFlush(){
 addEventListener("online",()=>{oqBadge();oqFlush();pollQueue()});
 addEventListener("offline",oqBadge);
 setInterval(oqFlush,15000);
+
+/* ---------- bazar (dibaca dari web bazar / Firestore, hanya baca) ---------- */
+const fv=f=>{if(!f)return null;const k=Object.keys(f)[0],v=f[k];return k==="mapValue"?Object.fromEntries(Object.entries(v.fields||{}).map(([a,b])=>[a,fv(b)])):k==="arrayValue"?(v.values||[]).map(fv):k==="integerValue"||k==="doubleValue"?+v:v};
+const bzDate=d=>new Date(d+"T00:00:00").toLocaleDateString("id-ID",{weekday:"short",day:"numeric",month:"short",year:"numeric"});
+async function renderBazar(){
+  const box=$("#bzBox");
+  try{
+    const r=await fetch("https://firestore.googleapis.com/v1/projects/bazar-79f43/databases/(default)/documents/events?pageSize=100");
+    if(!r.ok)throw new Error(r.status);
+    const j=await r.json(),today=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10),rows=[],po=[];
+    (j.documents||[]).forEach(d=>{
+      const e=Object.fromEntries(Object.entries(d.fields||{}).map(([k,v])=>[k,fv(v)]));
+      (e.sesi||[]).forEach(s=>{if(s&&s.tgl&&s.tgl>=today)rows.push({d:s.tgl,t:(s.label||"Bazar")+" - "+(e.name||""),w:[s.jam,s.tempat].filter(Boolean).join(", "),o:e.org||""})});
+      if(e.poOpen)po.push(e)});
+    rows.sort((a,b)=>a.d.localeCompare(b.d));
+    box.innerHTML='<div class="card"><b>Jadwal bazar berikutnya</b>'+(rows.map(x=>'<div class="bzr"><div><b>'+esc(x.t)+'</b><div class="mute">'+esc(x.o)+(x.w?' - '+esc(x.w):'')+'</div></div><span class="tag">'+bzDate(x.d)+'</span></div>').join("")||'<p class="mute">Belum ada jadwal bazar.</p>')+'</div>'+
+      '<div class="card"><b>Open PO</b>'+(po.map(e=>'<div class="bzr"><div><b>'+esc(e.name||"")+'</b><div class="mute">'+(e.items||[]).map(i=>esc(i.n)+' '+rp(i.jual)).join(", ")+'</div></div>'+(e.poClose?'<span class="tag">tutup '+bzDate(e.poClose)+'</span>':'')+'</div>').join("")||'<p class="mute">Belum ada PO yang dibuka.</p>')+'</div>';
+  }catch(e){box.textContent="Jadwal bazar belum bisa dimuat. Coba lagi nanti."}
+}
 
 /* ---------- mulai ---------- */
 if("serviceWorker" in navigator&&/^https?:/.test(location.protocol))navigator.serviceWorker.register("sw.js").catch(()=>{});
