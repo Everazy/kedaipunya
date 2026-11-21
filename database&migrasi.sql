@@ -448,3 +448,52 @@ revoke all on function bayar_transaksi(bigint, text, numeric, text) from public;
 grant execute on function bayar_transaksi(bigint, text, numeric, text) to anon, authenticated;
 
 -- SELESAI.
+
+
+-- =====================================================================
+-- MIGRASI V3 - LOGIN STAF (KASIR) TERPISAH DARI OWNER
+-- Jalankan SETELAH semua migrasi di atas. Aman dijalankan berulang.
+--
+-- LANGKAH WAJIB SEBELUM MENJALANKAN:
+--   Supabase Dashboard -> Authentication -> Users -> Add user
+--   email: myeverast@gmail.com , isi password, centang Auto Confirm User.
+--   (Password tidak bisa dibuat lewat SQL ini.)
+--
+-- Peran:  admin (owner) | manager | kasir
+--   kasir   : Kasir, Bazar, Antrian, Member, Riwayat
+--   manager : + Bahan, Laporan, Pembukuan (hanya baca)
+--   owner   : semua, termasuk Menu, Resep, Pengaturan
+-- =====================================================================
+
+-- 1. izinkan peran 'kasir'
+alter table admins drop constraint if exists admins_role_chk;
+alter table admins add constraint admins_role_chk check (role in ('admin','manager','kasir'));
+
+-- 2. daftarkan myeverast@gmail.com sebagai kasir (tidak menurunkan owner/manager)
+insert into admins (user_id, role)
+select id, 'kasir' from auth.users where email = 'myeverast@gmail.com'
+on conflict (user_id) do nothing;
+
+-- 3. fungsi cek: akun terdaftar sebagai staf apa pun (owner/manager/kasir)
+create or replace function is_cashier() returns boolean
+language sql stable security definer set search_path = public as $fn$
+  select exists (select 1 from public.admins where user_id = auth.uid());
+$fn$;
+revoke all on function is_cashier() from public;
+grant execute on function is_cashier() to authenticated;
+
+-- 4. KUNCI fungsi transaksi: tamu (anon) tidak boleh memanggil lagi
+revoke execute on function buat_transaksi(jsonb, text, numeric, text, text, text, boolean, text, bigint, text, timestamptz) from anon;
+revoke execute on function bayar_transaksi(bigint, text, numeric, text) from anon;
+revoke execute on function ubah_status_pesanan(bigint, boolean) from anon;
+revoke execute on function cari_member(text) from anon;
+revoke execute on function daftar_member(text, text) from anon;
+revoke execute on function tukar_poin(bigint, int, text) from anon;
+grant execute on function buat_transaksi(jsonb, text, numeric, text, text, text, boolean, text, bigint, text, timestamptz) to authenticated;
+grant execute on function bayar_transaksi(bigint, text, numeric, text) to authenticated;
+grant execute on function ubah_status_pesanan(bigint, boolean) to authenticated;
+grant execute on function cari_member(text) to authenticated;
+grant execute on function daftar_member(text, text) to authenticated;
+grant execute on function tukar_poin(bigint, int, text) to authenticated;
+
+-- Cek hasil:  select u.email, a.role from admins a join auth.users u on u.id = a.user_id;

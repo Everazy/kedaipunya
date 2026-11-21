@@ -1,6 +1,6 @@
 /* Service worker kasir: menyimpan halaman agar bisa dibuka saat internet putus.
    Letakkan di folder yang sama dengan index.html. Permintaan ke Supabase tidak disentuh. */
-const C = "kasir-v4";
+const C = "kasir-v6";
 const SHELL = ["./", "index.html", "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"];
 
 self.addEventListener("install", e => {

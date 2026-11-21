@@ -126,12 +126,12 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:f
 <div id="login" class="hide">
   <div class="card">
     <img id="loginLogo" class="logo lg" alt="Logo">
-    <h2 style="font-size:20px;text-align:center">Masuk Admin / Manager</h2>
+    <h2 style="font-size:20px;text-align:center">Masuk Staf</h2>
     <label for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username">
     <label for="lPass">Kata sandi</label><input id="lPass" type="password" autocomplete="current-password">
     <p class="err" id="lErr"></p>
     <button class="btn pri full" id="lBtn" style="margin-top:8px">Masuk</button>
-    <button class="btn full" id="lBack" style="margin-top:8px">Kembali ke kasir</button>
+    <button class="btn full" id="lBack" style="margin-top:8px">Kembali</button>
   </div>
 </div>
 
@@ -145,9 +145,9 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:f
     <button data-t="member" class="ses">Member</button>
     <button data-t="menu" class="adm hide">Menu</button>
     <button data-t="resep" class="adm hide">Resep</button>
-    <button data-t="bahan" class="ses">Bahan</button>
+    <button data-t="bahan" class="stf hide">Bahan</button>
     <button data-t="riwayat" class="ses">Riwayat</button>
-    <button data-t="laporan" class="ses">Laporan</button>
+    <button data-t="laporan" class="stf hide">Laporan</button>
     <button data-t="pembukuan" class="stf hide">Pembukuan</button>
     <button data-t="atur" class="adm hide">Pengaturan</button>
     <span class="tag red hide" id="offTag"></span>
@@ -470,14 +470,21 @@ let isAdmin=false,isMgr=false,hasSes=false;
 async function boot(){
   $("#login").classList.add("hide");$("#app").classList.remove("hide");
   let ses=null;try{ses=(await sb.auth.getSession()).data.session}catch(e){}
-  let role="";
+  let role="",known=false;
   if(ses){
     try{
       const a=await sb.from("admins").select("role").maybeSingle();
-      if(!a.error){role=a.data?(a.data.role||"admin"):""}
-      else{const b=await sb.from("admins").select("user_id").maybeSingle();role=(b.data)?"admin":""}
+      if(!a.error){role=a.data?(a.data.role||"admin"):"";known=true}
+      else{const b=await sb.from("admins").select("user_id").maybeSingle();role=(b.data)?"admin":"";known=!b.error}
     }catch(e){role=cacheGet("role")||""}
-    cacheSet("role",role);
+    if(known)cacheSet("role",role);
+  }
+  /* akun yang login tapi belum didaftarkan (bukan owner/manager/kasir) ditolak */
+  if(ses&&known&&!role){
+    await sb.auth.signOut();cacheSet("role","");
+    $("#app").classList.add("hide");$("#login").classList.remove("hide");
+    $("#lErr").textContent="Akun ini belum terdaftar sebagai staf. Hubungi owner.";
+    return;
   }
   isAdmin=role==="admin";isMgr=role==="manager";hasSes=!!ses;
   document.body.classList.toggle("guest",!hasSes);
@@ -486,7 +493,7 @@ async function boot(){
   $("#logout").classList.toggle("hide",!ses);$("#adminLogin").classList.toggle("hide",!!ses);
   document.querySelectorAll(".adm").forEach(b=>b.classList.toggle("hide",!isAdmin));
   document.querySelectorAll(".stf").forEach(b=>b.classList.toggle("hide",!(isAdmin||isMgr)));
-  $("#roleTag").textContent=isAdmin?"Admin":isMgr?"Manager":hasSes?"Kasir":"Tamu";
+  $("#roleTag").textContent=isAdmin?"Owner":isMgr?"Manager":hasSes?"Kasir":"Tamu";
   try{await Promise.all([loadMenu(),loadSet(),loadCashiers()])}catch(e){fail(e)}
   renderKasir();if(hasSes)pollQueue();
 }
@@ -515,7 +522,7 @@ const TABS=["kasir","bazar","antrian","member","menu","resep","bahan","riwayat",
 function tab(t){
   if(!hasSes&&t!=="kasir"&&t!=="bazar")return;
   if(!isAdmin&&(t==="menu"||t==="atur"||t==="resep"))return;
-  if(!isAdmin&&!isMgr&&t==="pembukuan")return;
+  if(!isAdmin&&!isMgr&&(t==="pembukuan"||t==="bahan"||t==="laporan"))return;
   if(t!=="atur")discardDraft();
   TABS.forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
   document.querySelectorAll("#nav button[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
@@ -1454,10 +1461,12 @@ async function renderBazar(){
     (j.documents||[]).forEach(d=>{
       const e=Object.fromEntries(Object.entries(d.fields||{}).map(([k,v])=>[k,fv(v)]));
       (e.sesi||[]).forEach(s=>{if(s&&s.tgl&&s.tgl>=today)rows.push({d:s.tgl,t:(s.label||"Bazar")+" - "+(e.name||""),w:[s.jam,s.tempat].filter(Boolean).join(", "),o:e.org||""})});
-      if(e.poOpen)po.push(e)});
+      const pl=(e.pos&&e.pos.length)?e.pos:(e.poOpen?[{label:"Open PO",open:true,close:e.poClose,items:e.items||[]}]:[]);
+      pl.filter(p=>p&&p.open).forEach(p=>po.push({n:(p.label||"Open PO")+" - "+(e.name||""),items:p.items||[],close:p.close,
+        how:[(p.ambil&&p.ambil.on)?"ambil di "+(p.ambil.tempat||"tempat"):"",(p.antar&&p.antar.on)?"antar ("+((p.antar.zones||[]).map(z=>z.nama+" "+(+z.ongkir?rp(z.ongkir):"gratis")).join(", ")||"-")+")":""].filter(Boolean).join(" / ")}))});
     rows.sort((a,b)=>a.d.localeCompare(b.d));
     box.innerHTML='<div class="card"><b>Jadwal bazar berikutnya</b>'+(rows.map(x=>'<div class="bzr"><div><b>'+esc(x.t)+'</b><div class="mute">'+esc(x.o)+(x.w?' - '+esc(x.w):'')+'</div></div><span class="tag">'+bzDate(x.d)+'</span></div>').join("")||'<p class="mute">Belum ada jadwal bazar.</p>')+'</div>'+
-      '<div class="card"><b>Open PO</b>'+(po.map(e=>'<div class="bzr"><div><b>'+esc(e.name||"")+'</b><div class="mute">'+(e.items||[]).map(i=>esc(i.n)+' '+rp(i.jual)).join(", ")+'</div></div>'+(e.poClose?'<span class="tag">tutup '+bzDate(e.poClose)+'</span>':'')+'</div>').join("")||'<p class="mute">Belum ada PO yang dibuka.</p>')+'</div>';
+      '<div class="card"><b>Open PO</b>'+(po.map(e=>'<div class="bzr"><div><b>'+esc(e.n)+'</b><div class="mute">'+e.items.map(i=>esc(i.n)+' '+rp(i.jual)).join(", ")+'</div>'+(e.how?'<div class="mute">'+esc(e.how)+'</div>':'')+'</div>'+(e.close?'<span class="tag">tutup '+bzDate(e.close)+'</span>':'')+'</div>').join("")||'<p class="mute">Belum ada PO yang dibuka.</p>')+'</div>';
   }catch(e){box.textContent="Jadwal bazar belum bisa dimuat. Coba lagi nanti."}
 }
 
