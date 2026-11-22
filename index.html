@@ -21,7 +21,7 @@ nav button{border:0;background:none;padding:8px 14px;border-radius:var(--rs);fon
 nav button.on{background:var(--soft);color:var(--acc)}
 main{max-width:1200px;margin:0 auto;padding:20px}
 .grid{display:grid;grid-template-columns:1fr 360px;gap:20px;align-items:start}
-@media(max-width:860px){.grid{grid-template-columns:1fr}.cart{position:static!important}}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
 .card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:16px}
 .cart{position:sticky;top:76px}
 h2{font-size:16px;margin:0 0 12px}
@@ -119,6 +119,55 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:f
 .pts{font-size:22px;font-weight:800;color:var(--acc)}
 .hb{display:flex;align-items:flex-end;gap:3px;height:120px;padding-top:6px}
 .hb .bar{font-size:9px;gap:4px}
+
+/* ===== versi HP: nav bawah, keranjang ringkas, tanpa animasi ===== */
+.hact{display:flex;align-items:center;gap:8px;flex:none}
+.hbtn{border:1px solid var(--line);background:var(--surf);padding:7px 12px;border-radius:var(--rs);font-weight:700}
+.hbtn.bad{color:var(--bad)}
+header nav{flex:1;justify-content:flex-start}
+.cartBar,.mnav,.cartClose{display:none}
+.flash{animation:none;outline:3px solid var(--acc);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+@media(max-width:860px){
+  :root{--fs:16px}
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  header{position:static;padding:10px 14px;flex-wrap:nowrap}
+  header h1{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  header nav{display:none}
+  .logo{--logoH:34px;max-width:96px}
+  main{padding:14px}
+  input,select,textarea{font-size:16px;padding:12px}
+  .btn{padding:12px 16px;min-height:44px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;margin:10px -14px;padding:2px 14px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:none;padding:9px 16px;min-height:40px}
+  .menu{grid-template-columns:repeat(2,1fr);gap:8px}
+  .item{min-height:92px;padding:12px}
+  .item:active{background:var(--soft);border-color:var(--acc)}
+  .qty button{width:40px;height:40px;font-size:18px}
+  .qty{gap:10px}
+  .stats{grid-template-columns:1fr 1fr}
+  .mnav{display:grid;grid-template-columns:repeat(var(--n,5),1fr);position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--surf);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+  .mnav.hide{display:none}
+  .mnav button{border:0;background:none;min-height:52px;padding:4px 2px;font-size:12px;font-weight:700;color:var(--mute);border-radius:var(--rs);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative}
+  .mnav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .mnav button.on{color:var(--acc);background:var(--soft)}
+  .mnav .bdg{position:absolute;top:2px;right:calc(50% - 22px);min-width:18px;height:18px;border-radius:9px;background:var(--bad);color:#fff;font-size:11px;line-height:18px;padding:0 5px}
+  .cartBar{position:fixed;left:10px;right:10px;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:14;background:var(--acc);color:var(--acc-ink);border:0;border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:10px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.22);text-align:left}
+  .cartBar.hide{display:none!important}
+  .cartBar b{margin-left:auto;font-size:17px}.cartBar .cbGo{font-size:12px;opacity:.9;font-weight:600}
+  .guest .cartBar{display:none!important}
+  #kasir .cart{display:none}
+  #kasir .cart.open{display:block;position:fixed;inset:0;z-index:30;overflow:auto;border-radius:0;border:0;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+  .cartClose{display:inline-block}
+  .cart{position:static!important}
+  .modal{z-index:50;align-items:flex-end;padding:0}
+  .sheet{max-width:none;border-radius:16px 16px 0 0;max-height:92vh}
+  #login{margin:4vh auto}
+  .toast{bottom:calc(150px + env(safe-area-inset-bottom,0px))}
+  .moreList{display:grid;gap:8px}
+  .moreList .btn{text-align:left;font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -127,7 +176,7 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:f
   <div class="card">
     <img id="loginLogo" class="logo lg" alt="Logo">
     <h2 style="font-size:20px;text-align:center">Masuk Staf</h2>
-    <label for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username">
+    <label for="lEmail">Email</label><input id="lEmail" type="email" autocomplete="username" inputmode="email" autocapitalize="off" spellcheck="false">
     <label for="lPass">Kata sandi</label><input id="lPass" type="password" autocomplete="current-password">
     <p class="err" id="lErr"></p>
     <button class="btn pri full" id="lBtn" style="margin-top:8px">Masuk</button>
@@ -150,11 +199,13 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:f
     <button data-t="laporan" class="stf hide">Laporan</button>
     <button data-t="pembukuan" class="stf hide">Pembukuan</button>
     <button data-t="atur" class="adm hide">Pengaturan</button>
-    <span class="tag red hide" id="offTag"></span>
-    <span class="tag" id="roleTag"></span>
-    <button id="adminLogin" class="hide">Masuk Staf</button>
-    <button id="logout" class="hide" style="color:var(--bad)">Keluar</button>
   </nav>
+  <div class="hact">
+      <span class="tag red hide" id="offTag"></span>
+    <span class="tag" id="roleTag"></span>
+    <button id="adminLogin" class="hide hbtn">Masuk Staf</button>
+    <button id="logout" class="hide hbtn bad">Keluar</button>
+  </div>
 </header>
 <main>
   <section id="kasir">
@@ -164,8 +215,8 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:f
         <div class="chips" id="cats"></div>
         <div class="menu" id="menuGrid"></div>
       </div>
-      <div class="card cart">
-        <h2>Pesanan</h2>
+      <div class="card cart" id="cartPanel">
+        <div class="row sp"><h2>Pesanan</h2><button class="btn cartClose" id="cartClose" type="button">Tutup</button></div>
         <div id="cartList"></div>
         <div class="row sp" style="margin:14px 0"><span class="mute">Total</span><span class="total" id="cartTotal">Rp0</span></div>
         <button class="btn pri full" id="payBtn">Bayar</button>
@@ -364,6 +415,9 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}.bzr{display:f
 </main>
 </div>
 
+<button id="cartBar" class="cartBar hide" type="button" aria-label="Lihat pesanan"><span id="cbInfo">0 item</span><b id="cbTotal">Rp0</b><span class="cbGo">Lihat pesanan &rsaquo;</span></button>
+<div id="mnav" class="mnav hide" role="navigation" aria-label="Menu utama"></div>
+<div class="modal" id="moreModal"><div class="sheet" id="moreSheet"></div></div>
 <div class="modal" id="payModal"><div class="sheet" id="paySheet"></div></div>
 <div class="modal" id="viewModal"><div class="sheet" id="viewSheet"></div></div>
 <div class="modal" id="camModal"><div class="sheet">
@@ -454,17 +508,25 @@ async function signed(bucket,paths){
 
 /* ---------- login & peran ---------- */
 async function doLogin(){
-  $("#lErr").textContent="";$("#lBtn").disabled=true;
-  const r=await sb.auth.signInWithPassword({email:$("#lEmail").value.trim(),password:$("#lPass").value});
+  $("#lErr").textContent="";
+  const em=$("#lEmail").value.trim().toLowerCase(),pw=$("#lPass").value;
+  if(!em||!pw){$("#lErr").textContent="Isi email dan kata sandi.";return}
+  $("#lBtn").disabled=true;
+  const r=await sb.auth.signInWithPassword({email:em,password:pw});
+  if(r.error){
+    $("#lErr").textContent="Email atau kata sandi salah, atau email belum diizinkan.";
+    $("#lPass").value="";
+    setTimeout(()=>{$("#lBtn").disabled=false},1500); /* jeda anti tebak-tebak sandi */
+    return;
+  }
   $("#lBtn").disabled=false;
-  if(r.error){$("#lErr").textContent="Email atau kata sandi salah.";return}
   boot();
 }
 $("#lBtn").onclick=doLogin;
 $("#adminLogin").onclick=()=>{$("#app").classList.add("hide");$("#login").classList.remove("hide");$("#lErr").textContent=""};
 $("#lBack").onclick=()=>{$("#login").classList.add("hide");$("#app").classList.remove("hide")};
 $("#lPass").addEventListener("keydown",e=>{if(e.key==="Enter")doLogin()});
-$("#logout").onclick=async()=>{await sb.auth.signOut();location.reload()};
+$("#logout").onclick=async()=>{cacheSet("role","");try{await sb.auth.signOut()}catch(e){}location.reload()};
 
 let isAdmin=false,isMgr=false,hasSes=false;
 async function boot(){
@@ -483,7 +545,7 @@ async function boot(){
   if(ses&&known&&!role){
     await sb.auth.signOut();cacheSet("role","");
     $("#app").classList.add("hide");$("#login").classList.remove("hide");
-    $("#lErr").textContent="Akun ini belum terdaftar sebagai staf. Hubungi owner.";
+    $("#lErr").textContent="Email ini belum diizinkan. Hubungi owner untuk didaftarkan.";
     return;
   }
   isAdmin=role==="admin";isMgr=role==="manager";hasSes=!!ses;
@@ -495,7 +557,7 @@ async function boot(){
   document.querySelectorAll(".stf").forEach(b=>b.classList.toggle("hide",!(isAdmin||isMgr)));
   $("#roleTag").textContent=isAdmin?"Owner":isMgr?"Manager":hasSes?"Kasir":"Tamu";
   try{await Promise.all([loadMenu(),loadSet(),loadCashiers()])}catch(e){fail(e)}
-  renderKasir();if(hasSes)pollQueue();
+  buildMnav();renderKasir();if(hasSes)pollQueue();
 }
 async function loadMenu(){
   try{menu=must(await sb.from("menu_items").select("*").eq("is_active",true).order("category").order("name")).map(m=>({id:m.id,name:m.name,cat:m.category,price:+m.price}));cacheSet("menu",menu)}
@@ -525,7 +587,10 @@ function tab(t){
   if(!isAdmin&&!isMgr&&(t==="pembukuan"||t==="bahan"||t==="laporan"))return;
   if(t!=="atur")discardDraft();
   TABS.forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
+  if(!noRender)window.scrollTo(0,0);
+  $("#cartPanel").classList.remove("open");
   document.querySelectorAll("#nav button[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
+  mnavSync(t);
   if(t==="bazar")renderBazar();
   if(t==="riwayat"&&!noRender)run(renderHist);
   if(t==="laporan"){run(renderReport);if(isAdmin||isMgr)run(renderDeep)}
@@ -556,7 +621,60 @@ const cartTotal=()=>cartItems().reduce((s,i)=>s+i.price*i.qty,0);
 function renderCart(){
   const it=cartItems();
   $("#cartList").innerHTML=it.length?it.map(i=>'<div class="line"><div><b>'+esc(i.name)+'</b><div class="mute">'+rp(i.price)+'</div></div><div class="qty"><button data-m="'+i.id+'" aria-label="Kurangi">-</button><span>'+i.qty+'</span><button data-p="'+i.id+'" aria-label="Tambah">+</button></div></div>').join(""):'<div class="empty">Pilih menu untuk memulai pesanan.</div>';
-  $("#cartTotal").textContent=rp(cartTotal());$("#payBtn").disabled=!it.length;
+  $("#cartTotal").textContent=rp(cartTotal());$("#payBtn").disabled=!it.length;cartBarSync();
+}
+
+/* ---------- nav bawah (HP) & keranjang ringkas ---------- */
+const ICON={kasir:'<path d="M4 7h16l-1.5 9a2 2 0 0 1-2 1.7H7.5a2 2 0 0 1-2-1.7L4 7zM9 7V5a3 3 0 0 1 6 0v2"/>',antrian:'<path d="M8 6h12M8 12h12M8 18h12M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',member:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',riwayat:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',bazar:'<path d="M3 9l1.5-5h15L21 9M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v8h14v-8"/>'};
+const mIcon=k=>'<svg viewBox="0 0 24 24" aria-hidden="true">'+(ICON[k]||ICON.more)+'</svg>';
+const MAIN=["kasir","antrian","riwayat","member"];
+let curTab="kasir";
+function visTabs(){return Array.from(document.querySelectorAll("#nav button[data-t]")).filter(b=>!b.classList.contains("hide")).map(b=>({t:b.dataset.t,label:b.firstChild.textContent.trim()}))}
+function buildMnav(){
+  const v=visTabs(),m=$("#mnav");
+  const main=v.filter(x=>MAIN.indexOf(x.t)>=0).sort((a,b)=>MAIN.indexOf(a.t)-MAIN.indexOf(b.t));
+  const rest=v.filter(x=>MAIN.indexOf(x.t)<0);
+  const items=main.slice();
+  if(!hasSes){rest.forEach(x=>items.push(x))}
+  let h=items.map(x=>'<button type="button" data-mt="'+x.t+'">'+mIcon(x.t)+'<span>'+esc(x.label)+'</span><span class="bdg hide" data-bd="'+x.t+'"></span></button>').join("");
+  if(hasSes&&rest.length)h+='<button type="button" data-more="1">'+mIcon("more")+'<span>Lainnya</span></button>';
+  if(hasSes&&!rest.length)h+='<button type="button" data-out="1">'+mIcon("more")+'<span>Keluar</span></button>';
+  m.innerHTML=h;m.style.setProperty("--n",m.children.length||1);
+  m.classList.toggle("hide",!m.children.length);
+  mnavSync(curTab);
+}
+function mnavSync(t){
+  curTab=t||curTab;try{cartBarSync()}catch(e){}
+  const m=$("#mnav");if(!m)return;
+  const restSel=visTabs().filter(x=>MAIN.indexOf(x.t)<0).map(x=>x.t);
+  m.querySelectorAll("button[data-mt]").forEach(b=>b.classList.toggle("on",b.dataset.mt===curTab));
+  const mb=m.querySelector("[data-more]");if(mb)mb.classList.toggle("on",hasSes&&restSel.indexOf(curTab)>=0);
+  const q=$("#qCount"),bd=m.querySelector('[data-bd="antrian"]');
+  if(bd){const n=q&&!q.classList.contains("hide")?q.textContent:"";bd.textContent=n;bd.classList.toggle("hide",!n)}
+}
+$("#mnav").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.mt)tab(b.dataset.mt);
+  else if(b.dataset.more)openMore();
+  else if(b.dataset.out)$("#logout").click();
+});
+function openMore(){
+  const rest=visTabs().filter(x=>MAIN.indexOf(x.t)<0);
+  $("#moreSheet").innerHTML='<h2>Menu lainnya</h2><div class="moreList">'+rest.map(x=>'<button class="btn'+(x.t===curTab?' pri':'')+'" data-go="'+x.t+'" type="button">'+esc(x.label)+'</button>').join("")+'</div><button class="btn bad full" id="moreOut" type="button" style="margin-top:14px">Keluar akun</button><button class="btn full" id="moreClose" type="button" style="margin-top:8px">Tutup</button>';
+  $("#moreModal").classList.add("open");
+}
+$("#moreModal").addEventListener("click",e=>{
+  if(e.target.id==="moreModal"||e.target.id==="moreClose")$("#moreModal").classList.remove("open");
+  const g=e.target.closest("[data-go]");if(g){$("#moreModal").classList.remove("open");tab(g.dataset.go)}
+  if(e.target.id==="moreOut")$("#logout").click();
+});
+$("#cartBar").onclick=()=>$("#cartPanel").classList.add("open");
+$("#cartClose").onclick=()=>$("#cartPanel").classList.remove("open");
+function cartBarSync(){
+  const it=cartItems(),n=it.reduce((a,i)=>a+i.qty,0),bar=$("#cartBar");
+  bar.classList.toggle("hide",!n||curTab!=="kasir");
+  $("#cbInfo").textContent=n+" item";$("#cbTotal").textContent=rp(cartTotal());
+  if(!n)$("#cartPanel").classList.remove("open");
 }
 $("#q").addEventListener("input",renderKasir);
 $("#qSort").addEventListener("change",renderKasir);
@@ -1216,7 +1334,7 @@ async function pollQueue(){
   pollCounts();
   try{
     const r=await sb.from("transactions").select("id",{count:"exact",head:true}).eq("is_made",false),n=r.count||0,b=$("#qCount");
-    if(!r.error){b.textContent=n;b.classList.toggle("hide",!n);if(lastQ!==null&&n>lastQ)flash($('#nav [data-t="antrian"]'),true);lastQ=n}
+    if(!r.error){b.textContent=n;b.classList.toggle("hide",!n);mnavSync();if(lastQ!==null&&n>lastQ)flash($('#nav [data-t="antrian"]'),true);lastQ=n}
   }catch(e){}
   if(!$("#antrian").classList.contains("hide"))try{await renderQueue(true)}catch(e){}
 }
@@ -1262,7 +1380,7 @@ async function renderPb(){
 }
 $("#pbFilter").onchange=$("#pbKind").onchange=()=>run(renderPb);
 $("#pbSearch").addEventListener("input",deb(()=>run(renderPb)));
-function flash(el,ns){if(!el)return;if(!ns)el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),2800)}
+function flash(el,ns){if(!el)return;if(!ns)el.scrollIntoView({behavior:"auto",block:"nearest"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash");setTimeout(()=>el.classList.remove("flash"),2800)}
 async function goTab(t,render,sel){noRender=true;try{tab(t)}finally{noRender=false}if(render)try{await render()}catch(e){fail(e);return}if(sel)flash($(sel))}
 $("#pbTable").addEventListener("click",e=>{
   const d=e.target.closest("[data-pd]");
