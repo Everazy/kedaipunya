@@ -229,7 +229,7 @@ nav button:hover{background:var(--soft)}
     <button data-t="member" class="ses">Member</button>
     <button data-t="menu" class="adm hide">Menu</button>
     <button data-t="resep" class="adm hide">Resep</button>
-    <button data-t="bahan" class="stf hide">Bahan</button>
+    <button data-t="bahan" class="ses">Bahan</button>
     <button data-t="riwayat" class="ses">Riwayat</button>
     <button data-t="laporan" class="ses">Laporan</button>
     <button data-t="pembukuan" class="stf hide">Pembukuan</button>
@@ -475,7 +475,7 @@ const SB_KEY="sb_publishable_L-B3JPdwj8Ond3gUOXmHdg_OwIz7gPr";
 (function(){
 const $=s=>document.querySelector(s);
 const rp=n=>"Rp"+Math.round(+n||0).toLocaleString("id-ID");
-const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt=t=>{const ms=new Date(t).getTime(),d=dayOf(ms),dw=dayWord(d),tm=new Date(ms).toLocaleTimeString("id-ID",{timeZone:"Asia/Makassar",hour:"2-digit",minute:"2-digit"});return (dw?dw+", ":"")+dshort(d)+" "+tm};
 const must=r=>{if(r.error)throw r.error;return r.data};
 const isNet=e=>/fetch|network|Load failed|NetworkError/i.test((e&&e.message)||"");
@@ -613,7 +613,7 @@ async function boot(){
   $("#logout").classList.toggle("hide",!ses);$("#adminLogin").classList.toggle("hide",!!ses);
   document.querySelectorAll(".adm").forEach(b=>b.classList.toggle("hide",!isAdmin));
   document.querySelectorAll(".stf").forEach(b=>b.classList.toggle("hide",!(isAdmin||isMgr)));
-  document.body.classList.toggle("kasirView",!(isAdmin||isMgr));$("#roleTag").textContent=isAdmin?"Owner":isMgr?"Manager":hasSes?"Kasir":"Tamu";
+  document.body.classList.toggle("kasirView",!hasSes);$("#roleTag").textContent=isAdmin?"Owner":isMgr?"Manager":hasSes?"Kasir":"Tamu";
   try{await Promise.all([loadMenu(),loadSet(),loadCashiers()])}catch(e){fail(e)}
   buildMnav();renderKasir();if(hasSes)pollQueue();
 }
@@ -643,7 +643,7 @@ function tab(t){
   try{setDateLabels()}catch(e){}
   if(!hasSes&&t!=="kasir"&&t!=="bazar")return;
   if(!isAdmin&&(t==="menu"||t==="atur"||t==="resep"))return;
-  if(!isAdmin&&!isMgr&&(t==="pembukuan"||t==="bahan"))return;
+  if(!isAdmin&&!isMgr&&t==="pembukuan")return;
   if(t!=="atur")discardDraft();
   TABS.forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
   if(!noRender)window.scrollTo(0,0);
@@ -652,7 +652,7 @@ function tab(t){
   mnavSync(t);
   if(t==="bazar")renderBazar();
   if(t==="riwayat"&&!noRender)run(renderHist);
-  if(t==="laporan"){run(renderCups);if(isAdmin||isMgr){run(renderReport);run(renderDeep)}}
+  if(t==="laporan"){run(renderCups);if(hasSes){run(renderReport);run(renderDeep)}}
   if(t==="menu")renderAdmin();
   if(t==="resep")run(renderResep);
   if(t==="member")run(renderMember);
@@ -1300,7 +1300,7 @@ async function renderBuy(){
   let shown=notes.filter(n=>!bq||((n.note||"")+" "+n.items.map(i=>i.name).join(" ")).toLowerCase().indexOf(bq)>=0);
   if(bs==="old")shown=shown.slice().reverse();else if(bs==="hi")shown=shown.slice().sort((x,y)=>sum(y)-sum(x));else if(bs==="lo")shown=shown.slice().sort((x,y)=>sum(x)-sum(y));
   $("#buyTotal").textContent=rp(shown.reduce((t,n)=>t+sum(n),0));
-  $("#buyList").innerHTML=shown.length?shown.map(n=>'<div class="note" data-nid="'+n.id+'"><div class="row sp wrap"><div><b>'+fmt(n.purchased_at)+'</b>'+(n.note?' <span class="tag">'+esc(n.note)+'</span>':'')+(n.legacy?' <span class="tag">catatan lama</span>':'')+'</div><div class="row">'+(n.photos.length?'<button class="btn" data-np="'+n.id+'">Foto ('+n.photos.length+')</button>':'')+'<button class="btn" data-ne="'+n.id+'">Ubah</button><button class="btn bad" data-nd="'+n.id+'">Hapus</button></div></div>'
+  $("#buyList").innerHTML=shown.length?shown.map(n=>'<div class="note" data-nid="'+n.id+'"><div class="row sp wrap"><div><b>'+fmt(n.purchased_at)+'</b>'+(n.note?' <span class="tag">'+esc(n.note)+'</span>':'')+(n.legacy?' <span class="tag">catatan lama</span>':'')+'</div><div class="row">'+(n.photos.length?'<button class="btn" data-np="'+n.id+'">Foto ('+n.photos.length+')</button>':'')+'<button class="btn" data-ne="'+n.id+'">Ubah</button>'+((isAdmin||isMgr)?'<button class="btn bad" data-nd="'+n.id+'">Hapus</button>':'')+'</div></div>'
     +'<div style="overflow-x:auto"><table><thead><tr><th>Bahan</th><th>Jumlah</th><th class="r">Harga satuan</th><th class="r">Total</th></tr></thead><tbody>'
     +n.items.map(i=>'<tr><td>'+esc(i.name)+'</td><td>'+(i.qty!=null?nf(i.qty)+(i.unit?" "+esc(i.unit):""):esc(i.quantity_note||"-"))+(i.size!=null&&+i.size>0?' <span class="mute">(isi '+nf(i.size)+(i.size_unit?" "+esc(i.size_unit):"")+')</span>':"")+'</td><td class="r">'+(i.unit_price!=null?rp(i.unit_price):"-")+'</td><td class="r">'+rp(i.price)+'</td></tr>').join("")
     +'</tbody></table></div><div class="row sp"><span class="mute">'+n.items.length+' bahan</span><b>Total '+rp(sum(n))+'</b></div></div>').join(""):'<div class="empty">Belum ada nota belanja pada periode ini.</div>';

@@ -497,3 +497,71 @@ grant execute on function daftar_member(text, text) to authenticated;
 grant execute on function tukar_poin(bigint, int, text) to authenticated;
 
 -- Cek hasil:  select u.email, a.role from admins a join auth.users u on u.id = a.user_id;
+
+
+-- =====================================================================
+-- MIGRASI V3 (jalankan SETELAH semua migrasi di atas). Aman dijalankan berulang.
+-- Supabase Dashboard -> SQL Editor -> New query -> tempel -> Run.
+--  1. Kasir boleh memakai BAHAN (lihat, tambah, ubah nota belanja) dan LAPORAN.
+--     Hapus nota tetap hanya owner/manager. PEMBUKUAN tetap hanya owner/manager.
+--  2. Pengunci keamanan: perubahan data transaksi / member hanya bisa dilakukan
+--     akun yang terdaftar di tabel admins (owner/manager/kasir).
+-- =====================================================================
+
+-- ---------- 1. BAHAN & LAPORAN UNTUK KASIR ----------
+alter table purchases      enable row level security;
+alter table purchase_notes enable row level security;
+
+drop policy if exists "kasir_baca_purchases"   on purchases;
+drop policy if exists "kasir_tambah_purchases" on purchases;
+drop policy if exists "kasir_ubah_purchases"   on purchases;
+drop policy if exists "staff_hapus_purchases"  on purchases;
+create policy "kasir_baca_purchases"   on purchases for select to authenticated using (is_cashier());
+create policy "kasir_tambah_purchases" on purchases for insert to authenticated with check (is_cashier());
+create policy "kasir_ubah_purchases"   on purchases for update to authenticated using (is_cashier()) with check (is_cashier());
+create policy "staff_hapus_purchases"  on purchases for delete to authenticated using (is_staff());
+
+drop policy if exists "kasir_baca_purchase_notes"   on purchase_notes;
+drop policy if exists "kasir_tambah_purchase_notes" on purchase_notes;
+drop policy if exists "kasir_ubah_purchase_notes"   on purchase_notes;
+drop policy if exists "staff_hapus_purchase_notes"  on purchase_notes;
+create policy "kasir_baca_purchase_notes"   on purchase_notes for select to authenticated using (is_cashier());
+create policy "kasir_tambah_purchase_notes" on purchase_notes for insert to authenticated with check (is_cashier());
+create policy "kasir_ubah_purchase_notes"   on purchase_notes for update to authenticated using (is_cashier()) with check (is_cashier());
+create policy "staff_hapus_purchase_notes"  on purchase_notes for delete to authenticated using (is_staff());
+
+-- Laporan (view memakai security_invoker, jadi hak baca tabel di atas yang berlaku)
+grant select on report_summary, report_daily, report_top_items to authenticated;
+
+-- ---------- 2. PENGUNCI: hanya staf terdaftar yang boleh mengubah transaksi & member ----------
+-- Fungsi transaksi (buat_transaksi, bayar_transaksi, dst.) berjalan sebagai security definer,
+-- jadi akun Supabase biasa yang bukan staf tidak boleh lolos hanya karena sudah "login".
+-- Pengaman ini aktif untuk permintaan lewat API (session_user = authenticator), bukan untuk SQL Editor.
+create or replace function guard_staff_write() returns trigger
+language plpgsql set search_path = public as $fn$
+begin
+  if session_user = 'authenticator' and not coalesce(public.is_cashier(), false) then
+    raise exception 'Tidak diizinkan' using errcode = '42501';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end $fn$;
+
+drop trigger if exists guard_staff on transactions;
+create trigger guard_staff before insert or update or delete on transactions      for each row execute function guard_staff_write();
+drop trigger if exists guard_staff on transaction_items;
+create trigger guard_staff before insert or update or delete on transaction_items for each row execute function guard_staff_write();
+drop trigger if exists guard_staff on customers;
+create trigger guard_staff before insert or update or delete on customers         for each row execute function guard_staff_write();
+drop trigger if exists guard_staff on loyalty_log;
+create trigger guard_staff before insert or update or delete on loyalty_log       for each row execute function guard_staff_write();
+
+-- ---------- 3. CEK MANUAL (jalankan terpisah, hanya untuk melihat hasil) ----------
+-- Tabel di schema public yang RLS-nya MATI (harus kosong hasilnya):
+--   select tablename from pg_tables where schemaname = 'public' and not rowsecurity;
+-- Daftar kebijakan akses yang aktif:
+--   select tablename, policyname, roles, cmd from pg_policies where schemaname = 'public' order by 1, 2;
+-- Daftar akun staf:
+--   select u.email, a.role from admins a join auth.users u on u.id = a.user_id;
+-- Di Dashboard: Authentication -> Sign In / Providers -> matikan "Allow new users to sign up"
+-- (akun staf dibuat manual oleh owner), dan aktifkan "Leaked password protection".
