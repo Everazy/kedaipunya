@@ -171,8 +171,11 @@ header nav{flex:1;justify-content:flex-start}
 
 /* ===== perbaikan: panel pesanan HP langsung terlihat (tanpa scroll) ===== */
 @media(max-width:860px){
-  #kasir .cart.open{position:fixed!important;inset:0;z-index:60;overflow:auto;border-radius:0;border:0;padding:16px 16px calc(24px + env(safe-area-inset-bottom,0px));background:var(--surf)}
-  #kasir .cart.open .row.sp:first-child{position:sticky;top:-16px;background:var(--surf);padding:8px 0;z-index:1}
+  /* pesanan tampil sebagai pop up di tengah layar (bukan layar penuh); panel dipindah ke <body> saat dibuka */
+  body>.cart.open{display:block!important;position:fixed!important;inset:auto!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%);z-index:61;width:min(440px,calc(100vw - 24px));max-height:min(80vh,calc(100dvh - 24px));overflow:auto;border-radius:16px;border:1px solid var(--line);padding:16px;background:var(--surf);box-shadow:0 18px 48px rgba(0,0,0,.35);overscroll-behavior:contain}
+  body>.cart.open .row.sp:first-child{position:sticky;top:-16px;background:var(--surf);padding:8px 0;z-index:1}
+  .cartBack{position:fixed;inset:0;z-index:60;background:rgba(10,15,13,.55);display:none}
+  .cartBack.open{display:block}
 }
 .kasirView .stfOnly{display:none!important}
 .cupbar{flex:1.2;height:10px;border-radius:6px;background:var(--soft);overflow:hidden;min-width:60px}
@@ -448,6 +451,7 @@ nav button:hover{background:var(--soft)}
 </main>
 </div>
 
+<div id="cartBack" class="cartBack" aria-hidden="true"></div>
 <button id="cartBar" class="cartBar hide" type="button" aria-label="Lihat pesanan"><span id="cbInfo">0 item</span><b id="cbTotal">Rp0</b><span class="cbGo">Lihat pesanan &rsaquo;</span></button>
 <div id="mnav" class="mnav hide" role="navigation" aria-label="Menu utama"></div>
 <div class="modal" id="moreModal"><div class="sheet" id="moreSheet"></div></div>
@@ -643,7 +647,7 @@ function tab(t){
   if(t!=="atur")discardDraft();
   TABS.forEach(id=>$("#"+id).classList.toggle("hide",id!==t));
   if(!noRender)window.scrollTo(0,0);
-  $("#cartPanel").classList.remove("open");
+  closeCart();
   document.querySelectorAll("#nav button[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
   mnavSync(t);
   if(t==="bazar")renderBazar();
@@ -723,13 +727,19 @@ $("#moreModal").addEventListener("click",e=>{
   const g=e.target.closest("[data-go]");if(g){$("#moreModal").classList.remove("open");tab(g.dataset.go)}
   if(e.target.id==="moreOut")$("#logout").click();
 });
-$("#cartBar").onclick=()=>$("#cartPanel").classList.add("open");
-$("#cartClose").onclick=()=>$("#cartPanel").classList.remove("open");
+/* pop up pesanan: panel dipindah ke <body> saat dibuka agar selalu di tengah layar, tanpa perlu scroll */
+var cartHome=null;
+function openCart(){const p=$("#cartPanel");if(!p.classList.contains("open")){cartHome={parent:p.parentNode,next:p.nextSibling};document.body.appendChild(p);p.classList.add("open");$("#cartBack").classList.add("open");p.scrollTop=0}}
+function closeCart(){const p=$("#cartPanel");p.classList.remove("open");$("#cartBack").classList.remove("open");if(cartHome&&p.parentNode===document.body){cartHome.parent.insertBefore(p,cartHome.next&&cartHome.next.parentNode===cartHome.parent?cartHome.next:null)}cartHome=null}
+$("#cartBar").onclick=openCart;
+$("#cartClose").onclick=closeCart;
+$("#cartBack").onclick=closeCart;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#cartPanel").classList.contains("open"))closeCart()});
 function cartBarSync(){
   const it=cartItems(),n=it.reduce((a,i)=>a+i.qty,0),bar=$("#cartBar");
   bar.classList.toggle("hide",!n||curTab!=="kasir");
   $("#cbInfo").textContent=n+" item";$("#cbTotal").textContent=rp(cartTotal());
-  if(!n)$("#cartPanel").classList.remove("open");
+  if(!n)closeCart();
 }
 $("#q").addEventListener("input",renderKasir);
 $("#qSort").addEventListener("change",renderKasir);
@@ -785,7 +795,7 @@ function drawPay(){
   h+='<div class="row" style="margin-top:14px"><button class="btn pri" style="flex:1" id="done"'+(payBad(p)?' disabled':'')+'>'+(later?'Simpan pesanan':'Selesaikan transaksi')+'</button><button class="btn" id="cancelPay">Batal</button></div>';
   $("#paySheet").innerHTML=h;
 }
-$("#payBtn").onclick=openPay;
+$("#payBtn").onclick=()=>{closeCart();openPay()};
 async function searchMember(){
   const el=$("#cname");if(!el||pending.member)return;const q=el.value.trim(),box=$("#mres");
   if(q.length<3){box.innerHTML="";mres=[];return}
